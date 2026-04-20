@@ -47,82 +47,17 @@ class MainWindow(QMainWindow):
                  repo_store: IRepoStore, remote_tag_cache=None, repo_path: str | None = None, parent=None,
                  *, session_factory: Callable[[str], tuple[QueryBus, CommandBus]]) -> None:
         super().__init__(parent)
-        self.setWindowTitle(f"GitCrisp — {repo_path}" if repo_path else "GitCrisp")
-        self.resize(1400, 800)
-        self.menuBar().setStyleSheet(
-            "QMenu { padding: 6px; }"
-            "QMenu::item { padding: 6px 24px 6px 20px; }"
-        )
-        install_appearance_menu(self)
-
         self._queries = queries
         self._commands = commands
         self._repo_store = repo_store
         self._remote_tag_cache = remote_tag_cache
         self._repo_path = repo_path
         self._session_factory = session_factory
-        self._repo_ready_signals = _RepoReadySignals()
-        self._repo_ready_signals.ready.connect(self._on_repo_ready)
-        self._repo_ready_signals.failed.connect(self._on_repo_failed)
-        self._sidebar = SidebarWidget(queries, commands, remote_tag_cache, repo_path)
-        self._graph = GraphWidget(queries, commands)
-        self._diff = DiffWidget(queries, commands)
-        self._working_tree = WorkingTreeWidget(queries, commands, repo_path=repo_path)
-        self._repo_list = RepoListWidget(repo_store)
-        self._log_panel = LogPanel()
-        self._remote_running = False
-        self._selected_oid: str | None = None
 
-        self._right_stack = QStackedWidget()
-        self._right_stack.addWidget(self._diff)           # index 0: commit mode
-        self._right_stack.addWidget(self._working_tree)    # index 1: working tree
-
-        # Vertical splitter for sidebar: branches on top, repos on bottom
-        sidebar_splitter = QSplitter(Qt.Vertical)
-        sidebar_splitter.addWidget(self._sidebar)
-        sidebar_splitter.addWidget(self._repo_list)
-        sidebar_splitter.setSizes([400, 400])
-
-        splitter = QSplitter(Qt.Horizontal)
-        splitter.addWidget(sidebar_splitter)
-        splitter.addWidget(self._graph)
-        splitter.addWidget(self._right_stack)
-        splitter.setSizes([220, 230, 950])
-        # Lock the handle between graph and right_stack so it can't be dragged
-        # Handle index 2 is between widget 1 (graph) and widget 2 (right_stack)
-        handle = splitter.handle(2)
-        if handle:
-            handle.setEnabled(False)
-            handle.setCursor(Qt.ArrowCursor)
-
-        # Main layout: splitter on top, log panel at bottom
-        central = QWidget()
-        central_layout = QVBoxLayout(central)
-        central_layout.setContentsMargins(0, 0, 0, 0)
-        central_layout.setSpacing(0)
-        central_layout.addWidget(splitter, 1)
-        central_layout.addWidget(self._log_panel, 0)
-
-        # F5 reload shortcut (global)
-        self._reload_shortcut = QShortcut(QKeySequence(Qt.Key_F5), self)
-        self._reload_shortcut.activated.connect(self._reload)
-
-        # Ctrl+F — search commits
-        self._search_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
-        self._search_shortcut.activated.connect(self._graph.open_search)
-
-        # Ctrl+W — close current repo (switch to previous open repo)
-        self._close_repo_shortcut = QShortcut(QKeySequence("Ctrl+W"), self)
-        self._close_repo_shortcut.activated.connect(self._close_current_repo)
-
-        # Ctrl+1..9 — switch to Nth open repo
-        self._repo_shortcuts: list[QShortcut] = []
-        for i in range(1, 10):
-            sc = QShortcut(QKeySequence(f"Ctrl+{i}"), self)
-            sc.activated.connect(lambda idx=i: self._switch_to_repo_index(idx))
-            self._repo_shortcuts.append(sc)
-
-        self.setCentralWidget(central)
+        self._build_chrome()
+        self._build_widgets()
+        self._build_layout()
+        self._build_shortcuts()
 
         # Wire cross-widget signals
         self._graph.commit_selected.connect(self._on_commit_selected)
@@ -203,6 +138,82 @@ class MainWindow(QMainWindow):
         if self._queries is not None:
             self._reload()
         self._repo_list.reload()
+
+    def _build_chrome(self) -> None:
+        self.setWindowTitle(f"GitCrisp — {self._repo_path}" if self._repo_path else "GitCrisp")
+        self.resize(1400, 800)
+        self.menuBar().setStyleSheet(
+            "QMenu { padding: 6px; }"
+            "QMenu::item { padding: 6px 24px 6px 20px; }"
+        )
+        install_appearance_menu(self)
+
+    def _build_widgets(self) -> None:
+        self._repo_ready_signals = _RepoReadySignals()
+        self._repo_ready_signals.ready.connect(self._on_repo_ready)
+        self._repo_ready_signals.failed.connect(self._on_repo_failed)
+        self._sidebar = SidebarWidget(self._queries, self._commands, self._remote_tag_cache, self._repo_path)
+        self._graph = GraphWidget(self._queries, self._commands)
+        self._diff = DiffWidget(self._queries, self._commands)
+        self._working_tree = WorkingTreeWidget(self._queries, self._commands, repo_path=self._repo_path)
+        self._repo_list = RepoListWidget(self._repo_store)
+        self._log_panel = LogPanel()
+        self._remote_running = False
+        self._selected_oid: str | None = None
+
+        self._right_stack = QStackedWidget()
+        self._right_stack.addWidget(self._diff)           # index 0: commit mode
+        self._right_stack.addWidget(self._working_tree)    # index 1: working tree
+
+    def _build_layout(self) -> None:
+        # Vertical splitter for sidebar: branches on top, repos on bottom
+        sidebar_splitter = QSplitter(Qt.Vertical)
+        sidebar_splitter.addWidget(self._sidebar)
+        sidebar_splitter.addWidget(self._repo_list)
+        sidebar_splitter.setSizes([400, 400])
+
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.addWidget(sidebar_splitter)
+        splitter.addWidget(self._graph)
+        splitter.addWidget(self._right_stack)
+        splitter.setSizes([220, 230, 950])
+        # Lock the handle between graph and right_stack so it can't be dragged
+        # Handle index 2 is between widget 1 (graph) and widget 2 (right_stack)
+        handle = splitter.handle(2)
+        if handle:
+            handle.setEnabled(False)
+            handle.setCursor(Qt.ArrowCursor)
+
+        # Main layout: splitter on top, log panel at bottom
+        central = QWidget()
+        central_layout = QVBoxLayout(central)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+        central_layout.setSpacing(0)
+        central_layout.addWidget(splitter, 1)
+        central_layout.addWidget(self._log_panel, 0)
+
+        self.setCentralWidget(central)
+
+    def _build_shortcuts(self) -> None:
+        # F5 reload shortcut (global)
+        self._reload_shortcut = QShortcut(QKeySequence(Qt.Key_F5), self)
+        self._reload_shortcut.activated.connect(self._reload)
+
+        # Ctrl+F — search commits
+        self._search_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
+        self._search_shortcut.activated.connect(self._graph.open_search)
+
+        # Ctrl+W — close current repo (switch to previous open repo)
+        self._close_repo_shortcut = QShortcut(QKeySequence("Ctrl+W"), self)
+        self._close_repo_shortcut.activated.connect(self._close_current_repo)
+
+        # Ctrl+1..9 — switch to Nth open repo
+        self._repo_shortcuts: list[QShortcut] = []
+        for i in range(1, 10):
+            sc = QShortcut(QKeySequence(f"Ctrl+{i}"), self)
+            sc.activated.connect(lambda idx=i: self._switch_to_repo_index(idx))
+            self._repo_shortcuts.append(sc)
+
         install_git_menu(
             self,
             queries=self._queries,
