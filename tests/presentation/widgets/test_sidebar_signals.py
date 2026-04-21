@@ -71,24 +71,45 @@ def _add_section(sidebar: SidebarWidget, title: str, children: list[QStandardIte
 
 def _capture_menu_actions(sidebar: SidebarWidget, item: QStandardItem) -> dict:
     """Invoke _show_context_menu for the item's index and return a dict of
-    {action_text: QAction} by spying on QMenu construction and blocking exec.
+    {action_text: QAction}.
 
-    Mocks sidebar._tree.indexAt at the instance level so the handler resolves
-    the pos we provide to the item's real QModelIndex."""
+    Replaces the QMenu class reference in the sidebar module's namespace
+    with a local subclass whose `exec`/`exec_`/`popup` are overridden to
+    no-ops. This is the most reliable way to intercept PySide6's C++-bound
+    QMenu.exec — Python-level patching (`patch.object(QMenu, "exec", ...)`
+    or instance-attribute shadowing) does NOT prevent the modal from
+    opening, which manifests as stray top-level windows floating on the
+    desktop after `pytest` completes.
+
+    Mocks sidebar._tree.indexAt at the instance level so the handler
+    resolves the pos we provide to the item's real QModelIndex."""
     from PySide6.QtCore import QPoint
 
     captured: list[QMenu] = []
-    original_init = QMenu.__init__
 
-    def spy_init(self, *args, **kwargs):
-        original_init(self, *args, **kwargs)
-        captured.append(self)
+    class _NoExecMenu(QMenu):
+        """Subclass of QMenu with exec disabled. Python method resolution
+        finds this override before the C++-level exec, so the menu never
+        becomes visible. The sidebar's `menu.exec(pos)` call returns None
+        immediately."""
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            captured.append(self)
+
+        def exec(self, *args, **kwargs):  # noqa: A003 — shadow Qt API intentionally
+            return None
+
+        def exec_(self, *args, **kwargs):
+            return None
+
+        def popup(self, *args, **kwargs):
+            return None
 
     idx = sidebar._model.indexFromItem(item)
     sidebar._tree.indexAt = MagicMock(return_value=idx)
 
-    with patch.object(QMenu, "__init__", spy_init), \
-         patch.object(QMenu, "exec", return_value=None):
+    with patch("git_gui.presentation.widgets.sidebar.QMenu", _NoExecMenu):
         sidebar._show_context_menu(QPoint(0, 0))
 
     assert captured, "No QMenu was constructed"
