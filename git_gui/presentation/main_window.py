@@ -27,6 +27,7 @@ from git_gui.presentation.menus.appearance import install_appearance_menu
 from git_gui.presentation.menus.git_menu import install_git_menu
 from git_gui.presentation.dialogs.interactive_rebase_dialog import InteractiveRebaseDialog
 from git_gui.presentation.main_window_pkg.branch_flows import BranchFlowsMixin
+from git_gui.presentation.main_window_pkg.cherry_pick_revert_flows import CherryPickRevertFlowsMixin
 from git_gui.presentation.main_window_pkg.reload_coordinator import ReloadCoordinatorMixin
 from git_gui.presentation.main_window_pkg.reset_flow import ResetFlowMixin
 from git_gui.presentation.main_window_pkg.right_panel import RightPanelMixin
@@ -47,7 +48,7 @@ class _RepoReadySignals(QObject):
     failed = Signal(str, str)             # path, error
 
 
-class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlowMixin, StashFlowsMixin, BranchFlowsMixin):
+class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlowMixin, StashFlowsMixin, BranchFlowsMixin, CherryPickRevertFlowsMixin):
     def __init__(self, queries: QueryBus | None, commands: CommandBus | None,
                  repo_store: IRepoStore, remote_tag_cache=None, repo_path: str | None = None, parent=None,
                  *, session_factory: Callable[[str], tuple[QueryBus, CommandBus]]) -> None:
@@ -69,16 +70,13 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlow
         self._wire_reset_flow_signals()
         self._wire_stash_flow_signals()
         self._wire_branch_flow_signals()
+        self._wire_cherry_pick_revert_flow_signals()
 
         # Wire cross-widget signals
         self._working_tree.merge_abort_requested.connect(self._on_merge_abort)
         self._working_tree.rebase_abort_requested.connect(self._on_rebase_abort)
         self._working_tree.merge_continue_requested.connect(self._on_merge_continue)
         self._working_tree.rebase_continue_requested.connect(self._on_rebase_continue)
-        self._working_tree.cherry_pick_abort_requested.connect(self._on_cherry_pick_abort)
-        self._working_tree.revert_abort_requested.connect(self._on_revert_abort)
-        self._working_tree.cherry_pick_continue_requested.connect(self._on_cherry_pick_continue)
-        self._working_tree.revert_continue_requested.connect(self._on_revert_continue)
         self._working_tree.commit_completed.connect(
             lambda msg: self._log_panel.log(f'Commit: "{msg}"')
         )
@@ -90,10 +88,6 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlow
         self._diff.rebase_continue_requested.connect(
             lambda: self._on_rebase_continue("")
         )
-        self._diff.cherry_pick_abort_requested.connect(self._on_cherry_pick_abort)
-        self._diff.revert_abort_requested.connect(self._on_revert_abort)
-        self._diff.cherry_pick_continue_requested.connect(self._on_cherry_pick_continue)
-        self._diff.revert_continue_requested.connect(self._on_revert_continue)
         self._sidebar.branch_clicked.connect(self._graph.reload_with_extra_tip)
         self._sidebar.branch_merge_requested.connect(self._on_merge)
         self._sidebar.branch_rebase_requested.connect(self._on_rebase)
@@ -112,8 +106,6 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlow
         self._graph.rebase_onto_commit_requested.connect(self._on_rebase_onto_commit)
         self._graph.interactive_rebase_branch_requested.connect(self._on_interactive_rebase_branch)
         self._graph.interactive_rebase_commit_requested.connect(self._on_interactive_rebase_commit)
-        self._graph.cherry_pick_requested.connect(self._on_cherry_pick)
-        self._graph.revert_commit_requested.connect(self._on_revert)
 
         # Sidebar tag signals
         self._sidebar.tag_clicked.connect(self._graph.reload_with_extra_tip)
@@ -367,70 +359,6 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlow
         except Exception as e:
             self._log_panel.expand()
             self._log_panel.log_error(f"Rebase continue — ERROR: {e}")
-        self._reload()
-
-    def _on_cherry_pick(self, oid: str) -> None:
-        short = oid[:7]
-        try:
-            self._commands.cherry_pick.execute(oid)
-            self._log_panel.log(f"Cherry-pick: {short}")
-        except Exception as e:
-            self._log_panel.expand()
-            self._log_panel.log_error(f"Cherry-pick {short} — ERROR: {e}")
-        self._reload()
-
-    def _on_revert(self, oid: str) -> None:
-        short = oid[:7]
-        try:
-            self._commands.revert_commit.execute(oid)
-            self._log_panel.log(f"Revert: {short}")
-        except Exception as e:
-            self._log_panel.expand()
-            self._log_panel.log_error(f"Revert {short} — ERROR: {e}")
-        self._reload()
-
-    def _on_cherry_pick_abort(self) -> None:
-        try:
-            self._commands.cherry_pick_abort.execute()
-            self._log_panel.log("Cherry-pick aborted")
-        except Exception as e:
-            self._log_panel.expand()
-            self._log_panel.log_error(f"Cherry-pick abort — ERROR: {e}")
-        self._reload()
-
-    def _on_cherry_pick_continue(self) -> None:
-        try:
-            if self._queries.has_unresolved_conflicts.execute():
-                self._log_panel.expand()
-                self._log_panel.log_error("Resolve all conflicts and stage files first")
-                return
-            self._commands.cherry_pick_continue.execute()
-            self._log_panel.log("Cherry-pick continued")
-        except Exception as e:
-            self._log_panel.expand()
-            self._log_panel.log_error(f"Cherry-pick continue — ERROR: {e}")
-        self._reload()
-
-    def _on_revert_abort(self) -> None:
-        try:
-            self._commands.revert_abort.execute()
-            self._log_panel.log("Revert aborted")
-        except Exception as e:
-            self._log_panel.expand()
-            self._log_panel.log_error(f"Revert abort — ERROR: {e}")
-        self._reload()
-
-    def _on_revert_continue(self) -> None:
-        try:
-            if self._queries.has_unresolved_conflicts.execute():
-                self._log_panel.expand()
-                self._log_panel.log_error("Resolve all conflicts and stage files first")
-                return
-            self._commands.revert_continue.execute()
-            self._log_panel.log("Revert continued")
-        except Exception as e:
-            self._log_panel.expand()
-            self._log_panel.log_error(f"Revert continue — ERROR: {e}")
         self._reload()
 
     def _on_create_tag(self, oid: str) -> None:
