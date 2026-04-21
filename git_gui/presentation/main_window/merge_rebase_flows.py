@@ -1,6 +1,5 @@
 # git_gui/presentation/main_window/merge_rebase_flows.py
 from __future__ import annotations
-from PySide6.QtWidgets import QDialog, QMessageBox
 from git_gui.presentation.dialogs.merge_dialog import MergeDialog
 from git_gui.presentation.dialogs.interactive_rebase_dialog import InteractiveRebaseDialog
 

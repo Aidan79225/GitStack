@@ -64,11 +64,17 @@ def test_switch_repo_factory_failure_emits_failed_signal(qtbot):
 
 
 def test_main_window_source_does_not_import_infrastructure():
-    """Regression guard: main_window.py must not reference
-    git_gui.infrastructure in any import form."""
-    import git_gui.presentation.main_window as mw_mod
-    source = pathlib.Path(mw_mod.__file__).read_text(encoding="utf-8")
-    assert "git_gui.infrastructure" not in source, (
-        "main_window.py must not import from git_gui.infrastructure — "
-        "use the injected session_factory instead."
+    """Regression guard: no file in the main_window subpackage may
+    reference git_gui.infrastructure in any import form."""
+    import pathlib
+    import git_gui.presentation.main_window as mw_pkg
+    pkg_dir = pathlib.Path(mw_pkg.__file__).parent
+    offenders = []
+    for path in pkg_dir.rglob("*.py"):
+        source = path.read_text(encoding="utf-8")
+        if "git_gui.infrastructure" in source:
+            offenders.append(str(path))
+    assert offenders == [], (
+        "main_window subpackage must not import from git_gui.infrastructure — "
+        f"use the injected session_factory instead. Offenders: {offenders}"
     )
