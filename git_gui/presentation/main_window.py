@@ -29,6 +29,7 @@ from git_gui.presentation.dialogs.interactive_rebase_dialog import InteractiveRe
 from git_gui.presentation.main_window_pkg.reload_coordinator import ReloadCoordinatorMixin
 from git_gui.presentation.main_window_pkg.reset_flow import ResetFlowMixin
 from git_gui.presentation.main_window_pkg.right_panel import RightPanelMixin
+from git_gui.presentation.main_window_pkg.stash_flows import StashFlowsMixin
 
 
 logger = logging.getLogger(__name__)
@@ -45,7 +46,7 @@ class _RepoReadySignals(QObject):
     failed = Signal(str, str)             # path, error
 
 
-class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlowMixin):
+class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlowMixin, StashFlowsMixin):
     def __init__(self, queries: QueryBus | None, commands: CommandBus | None,
                  repo_store: IRepoStore, remote_tag_cache=None, repo_path: str | None = None, parent=None,
                  *, session_factory: Callable[[str], tuple[QueryBus, CommandBus]]) -> None:
@@ -65,6 +66,7 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlow
         self._wire_reload_signals()
         self._wire_right_panel_signals()
         self._wire_reset_flow_signals()
+        self._wire_stash_flow_signals()
 
         # Wire cross-widget signals
         self._working_tree.merge_abort_requested.connect(self._on_merge_abort)
@@ -98,10 +100,6 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlow
         self._sidebar.fetch_requested.connect(self._on_fetch_single)
         self._sidebar.branch_push_requested.connect(
             lambda b: self._run_remote_op(f"Push origin/{b}", lambda: self._commands.push.execute("origin", b)))
-        self._sidebar.stash_pop_requested.connect(self._on_stash_pop)
-        self._sidebar.stash_apply_requested.connect(self._on_stash_apply)
-        self._sidebar.stash_drop_requested.connect(self._on_stash_drop)
-        self._sidebar.stash_clicked.connect(self._on_stash_clicked)
 
         # Graph context menu signals
         self._graph.create_branch_requested.connect(self._on_create_branch)
@@ -111,7 +109,6 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlow
         self._graph.push_requested.connect(self._on_push)
         self._graph.pull_requested.connect(self._on_pull)
         self._graph.fetch_all_requested.connect(self._on_fetch_all_prune)
-        self._graph.stash_requested.connect(self._on_stash_requested)
         self._graph.create_tag_requested.connect(self._on_create_tag)
         self._graph.merge_branch_requested.connect(self._on_merge)
         self._graph.merge_commit_requested.connect(self._on_merge_commit)
@@ -219,11 +216,6 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlow
             repo_workdir=self._repo_path,
             on_open_submodule=self._on_submodule_open_requested,
         )
-
-    def _on_stash_clicked(self, oid: str) -> None:
-        self._graph.clear_selection()
-        self._right_stack.setCurrentIndex(0)
-        self._diff.load_commit(oid)
 
     def _on_branch_changed(self, branch: str) -> None:
         if self._queries is None:
@@ -462,51 +454,6 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlow
         except Exception as e:
             self._log_panel.expand()
             self._log_panel.log_error(f"Delete branch {branch} — ERROR: {e}")
-        self._reload()
-
-    def _on_stash_pop(self, index: int) -> None:
-        try:
-            self._commands.pop_stash.execute(index)
-            self._log_panel.log(f"Stash pop: @{{{index}}}")
-        except Exception as e:
-            self._log_panel.expand()
-            self._log_panel.log_error(f"Stash pop @{{{index}}} — ERROR: {e}")
-        self._reload()
-
-    def _on_stash_apply(self, index: int) -> None:
-        try:
-            self._commands.apply_stash.execute(index)
-            self._log_panel.log(f"Stash apply: @{{{index}}}")
-        except Exception as e:
-            self._log_panel.expand()
-            self._log_panel.log_error(f"Stash apply @{{{index}}} — ERROR: {e}")
-        self._reload()
-
-    def _on_stash_drop(self, index: int) -> None:
-        try:
-            self._commands.drop_stash.execute(index)
-            self._log_panel.log(f"Stash drop: @{{{index}}}")
-        except Exception as e:
-            self._log_panel.expand()
-            self._log_panel.log_error(f"Stash drop @{{{index}}} — ERROR: {e}")
-        self._reload()
-
-    def _on_stash_requested(self) -> None:
-        result = QMessageBox.question(
-            self,
-            "Stash Changes",
-            "Would you like to stash all uncommitted changes?\n\n"
-            "This will save your modifications and revert the working directory to a clean state.",
-        )
-        if result != QMessageBox.Yes:
-            return
-        branch = self._get_current_branch() or "unknown"
-        try:
-            self._commands.stash.execute(f"WIP on {branch}")
-            self._log_panel.log(f"Stash: WIP on {branch}")
-        except Exception as e:
-            self._log_panel.expand()
-            self._log_panel.log_error(f"Stash — ERROR: {e}")
         self._reload()
 
     def _on_create_branch(self, oid: str) -> None:
