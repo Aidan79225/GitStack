@@ -1,4 +1,4 @@
-# git_gui/presentation/main_window_pkg/remote_op_queue.py
+# git_gui/presentation/main_window/remote_op_queue.py
 from __future__ import annotations
 import threading
 from PySide6.QtCore import QObject, Signal

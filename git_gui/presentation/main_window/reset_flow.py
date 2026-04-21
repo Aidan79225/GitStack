@@ -1,4 +1,4 @@
-# git_gui/presentation/main_window_pkg/reset_flow.py
+# git_gui/presentation/main_window/reset_flow.py
 from __future__ import annotations
 from git_gui.presentation.dialogs.reset_dialog import ResetDialog
 from git_gui.domain.entities import ResetMode

@@ -1,4 +1,4 @@
-# git_gui/presentation/main_window_pkg/cherry_pick_revert_flows.py
+# git_gui/presentation/main_window/cherry_pick_revert_flows.py
 from __future__ import annotations
 from PySide6.QtWidgets import QMessageBox
 

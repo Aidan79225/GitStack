@@ -1,4 +1,4 @@
-# git_gui/presentation/main_window_pkg/tag_flows.py
+# git_gui/presentation/main_window/tag_flows.py
 from __future__ import annotations
 import logging
 from PySide6.QtWidgets import QDialog, QMessageBox

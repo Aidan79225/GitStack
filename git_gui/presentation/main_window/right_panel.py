@@ -1,4 +1,4 @@
-# git_gui/presentation/main_window_pkg/right_panel.py
+# git_gui/presentation/main_window/right_panel.py
 from __future__ import annotations
 from git_gui.domain.entities import WORKING_TREE_OID
 from git_gui.presentation.widgets.clone_dialog import CloneDialog
