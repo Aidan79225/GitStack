@@ -1,0 +1,112 @@
+# git_gui/presentation/services/repo_change_detector.py
+"""Auto change detection for the active git repository.
+
+Watches .git/ for external git-state writes and listens to application
+focus changes for working-tree edit polling. Both sources funnel through
+a 200 ms single-shot debouncer that calls the injected on_reload callback.
+"""
+from __future__ import annotations
+import logging
+from pathlib import Path
+from typing import Callable
+from PySide6.QtCore import QFileSystemWatcher, QObject, QTimer, Qt
+from PySide6.QtGui import QGuiApplication
+
+logger = logging.getLogger(__name__)
+
+_DEBOUNCE_MS = 200
+
+
+class RepoChangeDetector(QObject):
+    """Watch .git/ for external changes and GitCrisp's own focus state.
+    Call `on_reload` after a short debounce when either source fires.
+
+    Lifecycle: construct per active repo via `RepoChangeDetector(path, callback)`.
+    Call `stop()` before discarding to disconnect the application-state signal
+    and release filesystem-watch handles.
+    """
+
+    def __init__(
+        self,
+        repo_path: str,
+        on_reload: Callable[[], None],
+        parent: QObject | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._repo_path = Path(repo_path)
+        self._on_reload = on_reload
+
+        # Debouncer — single-shot timer, restarted on each event.
+        self._debouncer = QTimer(self)
+        self._debouncer.setSingleShot(True)
+        self._debouncer.setInterval(_DEBOUNCE_MS)
+        self._debouncer.timeout.connect(self._fire_reload)
+
+        # Git-state watcher.
+        self._watcher = QFileSystemWatcher(self)
+        self._watcher.fileChanged.connect(self._schedule_reload)
+        self._watcher.directoryChanged.connect(self._schedule_reload)
+        self._add_git_watch_paths()
+
+        # Focus watcher.
+        app = QGuiApplication.instance()
+        if app is not None:
+            app.applicationStateChanged.connect(self._on_app_state_changed)
+
+    # ── Public API ──────────────────────────────────────────────────────
+
+    def stop(self) -> None:
+        """Disconnect and release watches. Idempotent."""
+        app = QGuiApplication.instance()
+        if app is not None:
+            try:
+                app.applicationStateChanged.disconnect(self._on_app_state_changed)
+            except (RuntimeError, TypeError):
+                pass  # Already disconnected.
+        self._watcher.removePaths(self._watcher.files())
+        self._watcher.removePaths(self._watcher.directories())
+        self._debouncer.stop()
+
+    # ── Watch-set setup ─────────────────────────────────────────────────
+
+    def _add_git_watch_paths(self) -> None:
+        """Add every file and directory inside .git/ that indicates a state
+        change. Missing paths are silently skipped."""
+        git_dir = self._repo_path / ".git"
+        if not git_dir.is_dir():
+            logger.warning("RepoChangeDetector: .git not found at %s", git_dir)
+            return
+
+        files = [
+            git_dir / "HEAD",
+            git_dir / "index",
+            git_dir / "packed-refs",
+        ]
+        dirs = [
+            git_dir,
+            git_dir / "refs" / "heads",
+            git_dir / "refs" / "remotes",
+            git_dir / "refs" / "tags",
+            git_dir / "logs",
+        ]
+
+        for f in files:
+            if f.is_file() and not self._watcher.addPath(str(f)):
+                logger.warning("RepoChangeDetector: could not watch file %s", f)
+        for d in dirs:
+            if d.is_dir() and not self._watcher.addPath(str(d)):
+                logger.warning("RepoChangeDetector: could not watch dir %s", d)
+
+    # ── Handlers ────────────────────────────────────────────────────────
+
+    def _schedule_reload(self, _path: str = "") -> None:
+        """Coalesce events — each event restarts the debounce timer."""
+        self._debouncer.start()
+
+    def _on_app_state_changed(self, state: Qt.ApplicationState) -> None:
+        if state == Qt.ApplicationActive:
+            self._schedule_reload()
+
+    def _fire_reload(self) -> None:
+        """Timer fired — run the callback."""
+        self._on_reload()
