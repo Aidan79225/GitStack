@@ -27,6 +27,7 @@ from git_gui.presentation.menus.appearance import install_appearance_menu
 from git_gui.presentation.menus.git_menu import install_git_menu
 from git_gui.presentation.dialogs.interactive_rebase_dialog import InteractiveRebaseDialog
 from git_gui.presentation.main_window_pkg.reload_coordinator import ReloadCoordinatorMixin
+from git_gui.presentation.main_window_pkg.reset_flow import ResetFlowMixin
 from git_gui.presentation.main_window_pkg.right_panel import RightPanelMixin
 
 
@@ -44,7 +45,7 @@ class _RepoReadySignals(QObject):
     failed = Signal(str, str)             # path, error
 
 
-class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin):
+class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlowMixin):
     def __init__(self, queries: QueryBus | None, commands: CommandBus | None,
                  repo_store: IRepoStore, remote_tag_cache=None, repo_path: str | None = None, parent=None,
                  *, session_factory: Callable[[str], tuple[QueryBus, CommandBus]]) -> None:
@@ -63,6 +64,7 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin):
 
         self._wire_reload_signals()
         self._wire_right_panel_signals()
+        self._wire_reset_flow_signals()
 
         # Wire cross-widget signals
         self._working_tree.merge_abort_requested.connect(self._on_merge_abort)
@@ -119,7 +121,6 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin):
         self._graph.interactive_rebase_commit_requested.connect(self._on_interactive_rebase_commit)
         self._graph.cherry_pick_requested.connect(self._on_cherry_pick)
         self._graph.revert_commit_requested.connect(self._on_revert)
-        self._graph.reset_to_commit_requested.connect(self._on_reset_to_commit)
 
         # Sidebar tag signals
         self._sidebar.tag_clicked.connect(self._graph.reload_with_extra_tip)
@@ -408,31 +409,6 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin):
         except Exception as e:
             self._log_panel.expand()
             self._log_panel.log_error(f"Revert {short} — ERROR: {e}")
-        self._reload()
-
-    def _on_reset_to_commit(self, oid: str, default_mode: ResetMode) -> None:
-        short = oid[:7]
-        try:
-            commit = self._queries.get_commit_detail.execute(oid)
-            head_branch = self._queries.get_repo_state.execute().head_branch or "HEAD"
-            dirty_files = self._queries.get_working_tree.execute()
-
-            dlg = ResetDialog(
-                branch_name=head_branch,
-                short_sha=short,
-                commit_subject=(commit.message.splitlines()[0] if commit.message else ""),
-                default_mode=default_mode,
-                dirty_files=dirty_files,
-                parent=self,
-            )
-            if dlg.exec() != ResetDialog.Accepted:
-                return
-            mode = dlg.result_mode()
-            self._commands.reset_branch.execute(oid, mode)
-            self._log_panel.log(f"Reset {head_branch} --{mode.value.lower()} to {short}")
-        except Exception as e:
-            self._log_panel.expand()
-            self._log_panel.log_error(f"Reset to {short} — ERROR: {e}")
         self._reload()
 
     def _on_cherry_pick_abort(self) -> None:
