@@ -27,6 +27,7 @@ from git_gui.presentation.menus.appearance import install_appearance_menu
 from git_gui.presentation.menus.git_menu import install_git_menu
 from git_gui.presentation.dialogs.interactive_rebase_dialog import InteractiveRebaseDialog
 from git_gui.presentation.main_window_pkg.reload_coordinator import ReloadCoordinatorMixin
+from git_gui.presentation.main_window_pkg.right_panel import RightPanelMixin
 
 
 logger = logging.getLogger(__name__)
@@ -43,7 +44,7 @@ class _RepoReadySignals(QObject):
     failed = Signal(str, str)             # path, error
 
 
-class MainWindow(QMainWindow, ReloadCoordinatorMixin):
+class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin):
     def __init__(self, queries: QueryBus | None, commands: CommandBus | None,
                  repo_store: IRepoStore, remote_tag_cache=None, repo_path: str | None = None, parent=None,
                  *, session_factory: Callable[[str], tuple[QueryBus, CommandBus]]) -> None:
@@ -61,9 +62,9 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin):
         self._build_shortcuts()
 
         self._wire_reload_signals()
+        self._wire_right_panel_signals()
 
         # Wire cross-widget signals
-        self._graph.commit_selected.connect(self._on_commit_selected)
         self._working_tree.merge_abort_requested.connect(self._on_merge_abort)
         self._working_tree.rebase_abort_requested.connect(self._on_rebase_abort)
         self._working_tree.merge_continue_requested.connect(self._on_merge_continue)
@@ -78,9 +79,6 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin):
         self._working_tree.commit_failed.connect(
             lambda reason: (self._log_panel.expand(), self._log_panel.log_error(reason))
         )
-        self._working_tree.working_tree_empty.connect(self._on_working_tree_empty)
-        self._working_tree.submodule_open_requested.connect(self._on_submodule_path_clicked)
-        self._diff.submodule_open_requested.connect(self._on_submodule_path_clicked)
         self._diff.merge_abort_requested.connect(self._on_merge_abort)
         self._diff.rebase_abort_requested.connect(self._on_rebase_abort)
         self._diff.rebase_continue_requested.connect(
@@ -113,7 +111,6 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin):
         self._graph.fetch_all_requested.connect(self._on_fetch_all_prune)
         self._graph.stash_requested.connect(self._on_stash_requested)
         self._graph.create_tag_requested.connect(self._on_create_tag)
-        self._graph.insight_requested.connect(self._on_insight_requested)
         self._graph.merge_branch_requested.connect(self._on_merge)
         self._graph.merge_commit_requested.connect(self._on_merge_commit)
         self._graph.rebase_onto_branch_requested.connect(self._on_rebase)
@@ -134,7 +131,6 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin):
         self._repo_list.repo_open_requested.connect(self._on_repo_open)
         self._repo_list.repo_close_requested.connect(self._on_repo_close)
         self._repo_list.repo_remove_recent_requested.connect(self._on_repo_remove_recent)
-        self._repo_list.clone_requested.connect(self._on_clone_requested)
 
         if self._queries is not None:
             self._reload()
@@ -223,31 +219,10 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin):
             on_open_submodule=self._on_submodule_open_requested,
         )
 
-    def _on_working_tree_empty(self) -> None:
-        """Working tree has no changes — switch back to commit info and refresh graph."""
-        self._graph.reload()
-        oid = self._selected_oid
-        if not oid or oid == WORKING_TREE_OID:
-            if self._queries:
-                oid = self._queries.get_head_oid.execute()
-        if oid and oid != WORKING_TREE_OID:
-            self._right_stack.setCurrentIndex(0)
-            self._diff.load_commit(oid)
-
     def _on_stash_clicked(self, oid: str) -> None:
         self._graph.clear_selection()
         self._right_stack.setCurrentIndex(0)
         self._diff.load_commit(oid)
-
-    def _on_commit_selected(self, oid: str) -> None:
-        self._sidebar.clear_stash_selection()
-        self._selected_oid = oid
-        if oid == WORKING_TREE_OID:
-            self._right_stack.setCurrentIndex(1)
-            self._working_tree.reload()
-        else:
-            self._right_stack.setCurrentIndex(0)
-            self._diff.load_commit(oid)
 
     def _on_branch_changed(self, branch: str) -> None:
         if self._queries is None:
@@ -572,12 +547,6 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin):
             self._log_panel.log_error(f"Create branch — ERROR: {e}")
         self._reload()
 
-    def _on_insight_requested(self) -> None:
-        if self._queries is None:
-            return
-        dialog = InsightDialog(self._queries, self)
-        dialog.exec()
-
     def _on_create_tag(self, oid: str) -> None:
         dialog = CreateTagDialog(self)
         if dialog.exec() != QDialog.Accepted:
@@ -822,35 +791,6 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin):
         self._repo_store.remove_recent(path)
         self._repo_store.save()
         self._repo_list.reload()
-
-    def _on_clone_requested(self) -> None:
-        dialog = CloneDialog(self)
-        dialog.clone_completed.connect(self._on_clone_completed)
-        dialog.exec()
-
-    def _on_submodule_open_requested(self, abs_path: str) -> None:
-        """Open a submodule as a top-level repo (one-way switch).
-
-        Inserts the submodule right after the current (parent) repo in the
-        open list, so the sidebar shows submodules grouped under their parent.
-        """
-        self._repo_store.add_open(abs_path, after=self._repo_path)
-        self._repo_store.save()
-        self._switch_repo(abs_path)
-
-    def _on_submodule_path_clicked(self, rel_path: str) -> None:
-        """Resolve a relative submodule path against the current repo and open it."""
-        if not self._repo_path:
-            return
-        import os
-        abs_path = os.path.abspath(os.path.join(self._repo_path, rel_path))
-        self._on_submodule_open_requested(abs_path)
-
-    def _on_clone_completed(self, path: str) -> None:
-        self._repo_store.add_open(path)
-        self._repo_store.save()
-        self._switch_repo(path)
-        self._log_panel.log(f"Cloned repository: {path}")
 
     def _get_current_branch(self) -> str | None:
         if self._queries is None:
