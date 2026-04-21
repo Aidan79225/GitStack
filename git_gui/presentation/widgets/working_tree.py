@@ -186,6 +186,11 @@ class WorkingTreeWidget(QWidget):
             self._file_model.reload([], set())
             self._hunk_diff.clear()
 
+    def set_repo_path(self, path: str | None) -> None:
+        """Update the active repo path used by _ignore_file and any other
+        path-sensitive helper. Called on repo switch by the composite."""
+        self._repo_path = path
+
     def reload(self) -> None:
         queries = self._queries
 
