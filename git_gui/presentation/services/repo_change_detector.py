@@ -8,6 +8,7 @@ a 200 ms single-shot debouncer that calls the injected on_reload callback.
 from __future__ import annotations
 import logging
 from pathlib import Path
+from time import monotonic
 from typing import Callable
 from PySide6.QtCore import QFileSystemWatcher, QObject, QTimer, Qt
 from PySide6.QtGui import QGuiApplication
@@ -15,6 +16,7 @@ from PySide6.QtGui import QGuiApplication
 logger = logging.getLogger(__name__)
 
 _DEBOUNCE_MS = 200
+_SELF_RELOAD_SUPPRESS_MS = 500
 
 
 class RepoChangeDetector(QObject):
@@ -53,6 +55,8 @@ class RepoChangeDetector(QObject):
         if app is not None:
             app.applicationStateChanged.connect(self._on_app_state_changed)
 
+        self._suppress_until_ms: float = 0.0
+
     # ── Public API ──────────────────────────────────────────────────────
 
     def stop(self) -> None:
@@ -66,6 +70,13 @@ class RepoChangeDetector(QObject):
         self._watcher.removePaths(self._watcher.files())
         self._watcher.removePaths(self._watcher.directories())
         self._debouncer.stop()
+
+    def notify_self_reload(self) -> None:
+        """Record that GitCrisp just triggered its own reload. Watcher events
+        arriving within the next _SELF_RELOAD_SUPPRESS_MS are ignored, so
+        in-app commits don't cause a duplicate reload from the filesystem
+        events that our own writes produce."""
+        self._suppress_until_ms = monotonic() * 1000.0 + _SELF_RELOAD_SUPPRESS_MS
 
     # ── Watch-set setup ─────────────────────────────────────────────────
 
@@ -81,6 +92,10 @@ class RepoChangeDetector(QObject):
             git_dir / "HEAD",
             git_dir / "index",
             git_dir / "packed-refs",
+            git_dir / "FETCH_HEAD",
+            git_dir / "ORIG_HEAD",
+            git_dir / "MERGE_HEAD",
+            git_dir / "refs" / "stash",
         ]
         dirs = [
             git_dir,
@@ -100,12 +115,20 @@ class RepoChangeDetector(QObject):
     # ── Handlers ────────────────────────────────────────────────────────
 
     def _schedule_reload(self, _path: str = "") -> None:
-        """Coalesce events — each event restarts the debounce timer."""
+        """Coalesce filesystem events — each event restarts the debounce timer.
+        If we're within a self-reload suppression window, drop the event."""
+        if monotonic() * 1000.0 < self._suppress_until_ms:
+            return
+        self._debouncer.start()
+
+    def _schedule_reload_force(self) -> None:
+        """Same as _schedule_reload but never suppressed — used for focus events
+        which are user-driven, not consequences of our own writes."""
         self._debouncer.start()
 
     def _on_app_state_changed(self, state: Qt.ApplicationState) -> None:
         if state == Qt.ApplicationActive:
-            self._schedule_reload()
+            self._schedule_reload_force()
 
     def _fire_reload(self) -> None:
         """Timer fired — run the callback."""

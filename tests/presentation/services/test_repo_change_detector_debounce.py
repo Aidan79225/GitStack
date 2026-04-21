@@ -60,3 +60,23 @@ def test_stop_cancels_pending_reload(detector, qtbot):
     qtbot.wait(300)
     # No reload should have fired.
     assert calls == []
+
+
+def test_self_reload_suppression_drops_subsequent_filesystem_events(detector, qtbot):
+    """After notify_self_reload, filesystem events within the suppression
+    window do NOT fire a reload."""
+    d, calls = detector
+    d.notify_self_reload()
+    d._schedule_reload()  # simulate a filesystem event
+    qtbot.wait(400)
+    assert calls == [], "suppression should have dropped the event"
+
+
+def test_focus_events_bypass_self_reload_suppression(detector, qtbot):
+    """Focus changes are user-driven, not consequences of our own writes,
+    so suppression must NOT block them."""
+    d, calls = detector
+    d.notify_self_reload()
+    d._schedule_reload_force()  # simulate focus event
+    qtbot.wait(400)
+    assert len(calls) == 1, "focus events must bypass suppression"

@@ -14,6 +14,7 @@ A clean, focused desktop Git client built with Python and PySide6 (Qt) for every
 - **Inline search** (Ctrl+F) — search commit messages, authors, hashes, and dates across the full history
 - Click any commit to view its file list and unified diff
 - **Collapsing commit header** — commit info + message smoothly shrink as you scroll the diff, maximizing space for hunks (re-expands on scroll-up)
+- **Auto-refresh** — the UI reloads automatically when the repo changes outside GitCrisp (e.g., a `git commit` in a terminal) or when you tab back after editing a file in your editor
 - Click a branch in the sidebar to scroll the graph to its HEAD
 
 ### Working Tree & Staging
