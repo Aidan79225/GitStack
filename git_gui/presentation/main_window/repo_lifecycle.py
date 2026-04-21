@@ -5,6 +5,7 @@ from PySide6.QtCore import QObject, Signal
 
 from git_gui.presentation.bus import CommandBus, QueryBus
 from git_gui.presentation.menus.git_menu import install_git_menu
+from git_gui.presentation.services.repo_change_detector import RepoChangeDetector
 
 
 class _RepoReadySignals(QObject):
@@ -27,6 +28,13 @@ class RepoLifecycleMixin:
         self._repo_list.repo_remove_recent_requested.connect(self._on_repo_remove_recent)
         self._repo_ready_signals.ready.connect(self._on_repo_ready)
         self._repo_ready_signals.failed.connect(self._on_repo_failed)
+
+    def _stop_change_detector(self) -> None:
+        """Stop and release the current change detector, if any."""
+        if self._change_detector is not None:
+            self._change_detector.stop()
+            self._change_detector.deleteLater()
+            self._change_detector = None
 
     def _switch_repo(self, path: str) -> None:
         signals = self._repo_ready_signals
@@ -71,11 +79,18 @@ class RepoLifecycleMixin:
         )
         self._right_stack.setCurrentIndex(0)
 
+        # Replace any previous detector and start watching this repo.
+        self._stop_change_detector()
+        self._change_detector = RepoChangeDetector(
+            repo_path=path, on_reload=self._reload, parent=self,
+        )
+
     def _on_repo_failed(self, path: str, error: str) -> None:
         self._log_panel.expand()
         self._log_panel.log_error(f"Cannot open {path}: {error}")
 
     def _enter_empty_state(self) -> None:
+        self._stop_change_detector()
         self._queries = None
         self._commands = None
         self._sidebar.set_buses(None, None)

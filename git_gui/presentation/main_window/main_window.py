@@ -92,6 +92,7 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlow
         self._log_panel = LogPanel()
         self._remote_running = False
         self._selected_oid: str | None = None
+        self._change_detector = None  # RepoChangeDetector | None
 
         self._right_stack = QStackedWidget()
         self._right_stack.addWidget(self._diff)           # index 0: commit mode
