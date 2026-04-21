@@ -26,6 +26,7 @@ from git_gui.presentation.widgets.insight_dialog import InsightDialog
 from git_gui.presentation.menus.appearance import install_appearance_menu
 from git_gui.presentation.menus.git_menu import install_git_menu
 from git_gui.presentation.dialogs.interactive_rebase_dialog import InteractiveRebaseDialog
+from git_gui.presentation.main_window_pkg.reload_coordinator import ReloadCoordinatorMixin
 
 
 logger = logging.getLogger(__name__)
@@ -42,7 +43,7 @@ class _RepoReadySignals(QObject):
     failed = Signal(str, str)             # path, error
 
 
-class MainWindow(QMainWindow):
+class MainWindow(QMainWindow, ReloadCoordinatorMixin):
     def __init__(self, queries: QueryBus | None, commands: CommandBus | None,
                  repo_store: IRepoStore, remote_tag_cache=None, repo_path: str | None = None, parent=None,
                  *, session_factory: Callable[[str], tuple[QueryBus, CommandBus]]) -> None:
@@ -59,9 +60,10 @@ class MainWindow(QMainWindow):
         self._build_layout()
         self._build_shortcuts()
 
+        self._wire_reload_signals()
+
         # Wire cross-widget signals
         self._graph.commit_selected.connect(self._on_commit_selected)
-        self._working_tree.reload_requested.connect(self._reload)
         self._working_tree.merge_abort_requested.connect(self._on_merge_abort)
         self._working_tree.rebase_abort_requested.connect(self._on_rebase_abort)
         self._working_tree.merge_continue_requested.connect(self._on_merge_continue)
@@ -106,7 +108,6 @@ class MainWindow(QMainWindow):
         self._graph.checkout_commit_requested.connect(self._on_checkout_commit)
         self._graph.checkout_branch_requested.connect(self._on_checkout_branch)
         self._graph.delete_branch_requested.connect(self._on_delete_branch)
-        self._graph.reload_requested.connect(self._reload)
         self._graph.push_requested.connect(self._on_push)
         self._graph.pull_requested.connect(self._on_pull)
         self._graph.fetch_all_requested.connect(self._on_fetch_all_prune)
@@ -247,24 +248,6 @@ class MainWindow(QMainWindow):
         else:
             self._right_stack.setCurrentIndex(0)
             self._diff.load_commit(oid)
-
-    def _reload(self) -> None:
-        if self._queries is None:
-            return
-        self._sidebar.reload()
-        self._graph.reload()
-        if self._right_stack.currentIndex() == 1:
-            self._working_tree.reload()
-        if self._queries is not None:
-            try:
-                state_info = self._queries.get_repo_state.execute()
-                state_name = state_info.state.name
-                merge_msg = self._queries.get_merge_msg.execute() if state_name == "MERGING" else None
-                self._working_tree.update_conflict_banner(state_name, merge_msg)
-                self._diff.update_state_banner(state_name)
-            except Exception:
-                self._working_tree.update_conflict_banner("CLEAN")
-                self._diff.update_state_banner("CLEAN")
 
     def _on_branch_changed(self, branch: str) -> None:
         if self._queries is None:
