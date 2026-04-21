@@ -6,7 +6,7 @@ from typing import Callable
 from PySide6.QtCore import Qt, Signal, QObject
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
-    QDialog, QInputDialog, QMainWindow, QMessageBox, QSplitter, QStackedWidget,
+    QDialog, QMainWindow, QMessageBox, QSplitter, QStackedWidget,
     QVBoxLayout, QWidget,
 )
 from git_gui.domain.entities import WORKING_TREE_OID, ResetMode
@@ -26,6 +26,7 @@ from git_gui.presentation.widgets.insight_dialog import InsightDialog
 from git_gui.presentation.menus.appearance import install_appearance_menu
 from git_gui.presentation.menus.git_menu import install_git_menu
 from git_gui.presentation.dialogs.interactive_rebase_dialog import InteractiveRebaseDialog
+from git_gui.presentation.main_window_pkg.branch_flows import BranchFlowsMixin
 from git_gui.presentation.main_window_pkg.reload_coordinator import ReloadCoordinatorMixin
 from git_gui.presentation.main_window_pkg.reset_flow import ResetFlowMixin
 from git_gui.presentation.main_window_pkg.right_panel import RightPanelMixin
@@ -46,7 +47,7 @@ class _RepoReadySignals(QObject):
     failed = Signal(str, str)             # path, error
 
 
-class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlowMixin, StashFlowsMixin):
+class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlowMixin, StashFlowsMixin, BranchFlowsMixin):
     def __init__(self, queries: QueryBus | None, commands: CommandBus | None,
                  repo_store: IRepoStore, remote_tag_cache=None, repo_path: str | None = None, parent=None,
                  *, session_factory: Callable[[str], tuple[QueryBus, CommandBus]]) -> None:
@@ -67,6 +68,7 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlow
         self._wire_right_panel_signals()
         self._wire_reset_flow_signals()
         self._wire_stash_flow_signals()
+        self._wire_branch_flow_signals()
 
         # Wire cross-widget signals
         self._working_tree.merge_abort_requested.connect(self._on_merge_abort)
@@ -92,20 +94,14 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlow
         self._diff.revert_abort_requested.connect(self._on_revert_abort)
         self._diff.cherry_pick_continue_requested.connect(self._on_cherry_pick_continue)
         self._diff.revert_continue_requested.connect(self._on_revert_continue)
-        self._sidebar.branch_checkout_requested.connect(self._on_branch_changed)
         self._sidebar.branch_clicked.connect(self._graph.reload_with_extra_tip)
         self._sidebar.branch_merge_requested.connect(self._on_merge)
         self._sidebar.branch_rebase_requested.connect(self._on_rebase)
-        self._sidebar.branch_delete_requested.connect(self._on_delete_branch)
         self._sidebar.fetch_requested.connect(self._on_fetch_single)
         self._sidebar.branch_push_requested.connect(
             lambda b: self._run_remote_op(f"Push origin/{b}", lambda: self._commands.push.execute("origin", b)))
 
         # Graph context menu signals
-        self._graph.create_branch_requested.connect(self._on_create_branch)
-        self._graph.checkout_commit_requested.connect(self._on_checkout_commit)
-        self._graph.checkout_branch_requested.connect(self._on_checkout_branch)
-        self._graph.delete_branch_requested.connect(self._on_delete_branch)
         self._graph.push_requested.connect(self._on_push)
         self._graph.pull_requested.connect(self._on_pull)
         self._graph.fetch_all_requested.connect(self._on_fetch_all_prune)
@@ -216,16 +212,6 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlow
             repo_workdir=self._repo_path,
             on_open_submodule=self._on_submodule_open_requested,
         )
-
-    def _on_branch_changed(self, branch: str) -> None:
-        if self._queries is None:
-            return
-        self._sidebar.reload()
-        head_oid = self._queries.get_head_oid.execute()
-        if head_oid:
-            self._graph.reload_and_scroll_to(head_oid)
-        else:
-            self._graph.reload()
 
     def _on_merge(self, branch: str) -> None:
         try:
@@ -447,29 +433,6 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlow
             self._log_panel.log_error(f"Revert continue — ERROR: {e}")
         self._reload()
 
-    def _on_delete_branch(self, branch: str) -> None:
-        try:
-            self._commands.delete_branch.execute(branch)
-            self._log_panel.log(f"Deleted branch: {branch}")
-        except Exception as e:
-            self._log_panel.expand()
-            self._log_panel.log_error(f"Delete branch {branch} — ERROR: {e}")
-        self._reload()
-
-    def _on_create_branch(self, oid: str) -> None:
-        name, ok = QInputDialog.getText(self, "Create Branch", "Branch name:")
-        if not ok or not name.strip():
-            return
-        branch_name = name.strip()
-        try:
-            self._commands.create_branch.execute(branch_name, oid)
-            self._commands.checkout.execute(branch_name)
-            self._log_panel.log(f"Created and checked out branch: {branch_name}")
-        except Exception as e:
-            self._log_panel.expand()
-            self._log_panel.log_error(f"Create branch — ERROR: {e}")
-        self._reload()
-
     def _on_create_tag(self, oid: str) -> None:
         dialog = CreateTagDialog(self)
         if dialog.exec() != QDialog.Accepted:
@@ -566,49 +529,6 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlow
                             self._repo_path, r, name, e,
                         )
             self._run_remote_op(f"Delete tag {name} from {remote}", _fn)
-        self._reload()
-
-    def _on_checkout_commit(self, oid: str) -> None:
-        try:
-            self._commands.checkout_commit.execute(oid)
-            self._log_panel.log(f"Checkout (detached HEAD): {oid[:8]}")
-        except Exception as e:
-            self._log_panel.expand()
-            self._log_panel.log_error(f"Checkout {oid[:8]} — ERROR: {e}")
-        self._reload()
-
-    def _on_checkout_branch(self, name: str) -> None:
-        try:
-            if "/" in name:
-                local_name = name.split("/", 1)[1]
-                existing = {
-                    b.name for b in self._queries.get_branches.execute()
-                    if not b.is_remote
-                }
-                if local_name in existing:
-                    reply = QMessageBox.question(
-                        self,
-                        "Local branch exists",
-                        f"Local branch '{local_name}' already exists.\n\n"
-                        f"Reset it to '{name}' (HEAD)? This discards any local "
-                        f"commits and uncommitted changes on '{local_name}'.",
-                        QMessageBox.Yes | QMessageBox.Cancel,
-                        QMessageBox.Cancel,
-                    )
-                    if reply != QMessageBox.Yes:
-                        return
-                    self._commands.checkout.execute(local_name)
-                    self._commands.reset_branch_to_ref.execute(local_name, name)
-                    self._log_panel.log(f"Reset {local_name} to {name}")
-                else:
-                    self._commands.checkout_remote_branch.execute(name)
-                    self._log_panel.log(f"Checkout remote: {name} → local {local_name}")
-            else:
-                self._commands.checkout.execute(name)
-                self._log_panel.log(f"Checkout branch: {name}")
-        except Exception as e:
-            self._log_panel.expand()
-            self._log_panel.log_error(f"Checkout {name} — ERROR: {e}")
         self._reload()
 
     def _switch_repo(self, path: str) -> None:
