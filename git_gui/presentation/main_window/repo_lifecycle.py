@@ -60,6 +60,7 @@ class RepoLifecycleMixin:
         self._sidebar.set_buses(self._queries, self._commands)
         self._graph.set_buses(self._queries, self._commands)
         self._diff.set_buses(self._queries, self._commands)
+        self._working_tree.set_repo_path(path)
         self._working_tree.set_buses(self._queries, self._commands)
         self._repo_store.set_active(path)
         self._repo_store.save()
@@ -93,9 +94,12 @@ class RepoLifecycleMixin:
         self._stop_change_detector()
         self._queries = None
         self._commands = None
+        self._repo_path = None
+        self._sidebar.set_repo_path(None)
         self._sidebar.set_buses(None, None)
         self._graph.set_buses(None, None)
         self._diff.set_buses(None, None)
+        self._working_tree.set_repo_path(None)
         self._working_tree.set_buses(None, None)
         self._repo_list.reload()
         self.setWindowTitle("GitCrisp")
