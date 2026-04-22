@@ -29,11 +29,14 @@ def test_rewriting_head_triggers_reload_after_debounce(qtbot, repo_path):
     d = RepoChangeDetector(str(repo_path), on_reload=lambda: calls.append(None))
 
     head_path = repo_path / ".git" / "HEAD"
-    # Overwrite with new content — mtime-only touches don't always fire
-    # QFileSystemWatcher.fileChanged on all platforms.
-    head_path.write_text("ref: refs/heads/other\n", encoding="utf-8")
+    # On macOS, QFileSystemWatcher.fileChanged can take ~500 ms to arrive
+    # (kqueue/FSEvents latency in a QApplication context).  Use waitSignal so
+    # we block until the OS event is actually delivered rather than relying on
+    # a fixed sleep that may be shorter than the platform latency.
+    with qtbot.waitSignal(d._watcher.fileChanged, timeout=2000):
+        head_path.write_text("ref: refs/heads/other\n", encoding="utf-8")
 
-    qtbot.wait(400)
+    qtbot.wait(300)  # let the 200 ms debounce fire
     assert len(calls) >= 1, (
         "reload callback should fire after .git/HEAD is rewritten"
     )
