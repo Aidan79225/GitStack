@@ -17,3 +17,5 @@ dist/
 
 # Claude Code local settings
 .claude/settings.local.json
+.rtk/filters.toml
+.claude/scheduled_tasks.lock
