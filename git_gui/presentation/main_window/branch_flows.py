@@ -13,6 +13,7 @@ class BranchFlowsMixin:
     def _wire_branch_flow_signals(self) -> None:
         self._sidebar.branch_checkout_requested.connect(self._on_branch_changed)
         self._sidebar.branch_delete_requested.connect(self._on_delete_branch)
+        self._sidebar.remote_branch_delete_requested.connect(self._on_delete_remote_branch)
         self._graph.delete_branch_requested.connect(self._on_delete_branch)
         self._graph.create_branch_requested.connect(self._on_create_branch)
         self._graph.checkout_commit_requested.connect(self._on_checkout_commit)
@@ -36,6 +37,21 @@ class BranchFlowsMixin:
             self._log_panel.expand()
             self._log_panel.log_error(f"Delete branch {branch} — ERROR: {e}")
         self._reload()
+
+    def _on_delete_remote_branch(self, remote: str, branch: str) -> None:
+        reply = QMessageBox.question(
+            self,
+            "Delete Remote Branch",
+            f"Delete remote branch `{remote}/{branch}`? This cannot be undone.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+        self._run_remote_op(
+            f"Delete {remote}/{branch}",
+            lambda: self._commands.delete_remote_branch.execute(remote, branch),
+        )
 
     def _on_create_branch(self, oid: str) -> None:
         name, ok = QInputDialog.getText(self, "Create Branch", "Branch name:")
