@@ -13,7 +13,7 @@ from git_gui.application.queries import (
 )
 from git_gui.application.commands import (
     StageFiles, UnstageFiles, CreateCommit,
-    Checkout, CheckoutCommit, CheckoutRemoteBranch, CreateBranch, DeleteBranch,
+    Checkout, CheckoutCommit, CheckoutRemoteBranch, CreateBranch, DeleteBranch, DeleteRemoteBranch,
     CreateTag, DeleteTag, PushTag, DeleteRemoteTag,
     Merge, Rebase, Push, ForcePush, Pull, Fetch,
     Stash, PopStash, ApplyStash, DropStash,
@@ -100,6 +100,7 @@ class CommandBus:
     checkout_remote_branch: CheckoutRemoteBranch
     create_branch: CreateBranch
     delete_branch: DeleteBranch
+    delete_remote_branch: DeleteRemoteBranch
     create_tag: CreateTag
     delete_tag: DeleteTag
     push_tag: PushTag
@@ -155,6 +156,7 @@ class CommandBus:
             checkout_remote_branch=CheckoutRemoteBranch(writer),
             create_branch=CreateBranch(writer),
             delete_branch=DeleteBranch(writer),
+            delete_remote_branch=DeleteRemoteBranch(writer),
             create_tag=CreateTag(writer),
             delete_tag=DeleteTag(writer),
             push_tag=PushTag(writer),
