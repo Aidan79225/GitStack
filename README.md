@@ -63,6 +63,7 @@ A clean, focused desktop Git client built with Python and PySide6 (Qt) for every
 ### Remote Operations
 - Push, pull, fetch, and fetch-all-prune from the toolbar
 - Fetch from a specific remote via sidebar context menu
+- **Delete a remote branch** via sidebar context menu (`git push <remote> --delete <branch>`) with confirmation
 - **Force push dialog** — when a push is rejected (non-fast-forward), offers to force push with `--force-with-lease`
 - **`Git → Remotes...`** dialog: list, add, edit (rename / change URL), and remove remotes
 - All remote operations run in background threads with status bar indicator

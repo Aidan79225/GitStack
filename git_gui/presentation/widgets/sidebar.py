@@ -109,6 +109,7 @@ class SidebarWidget(QWidget):
     tag_clicked = Signal(str)               # target oid
     tag_delete_requested = Signal(str)       # tag name
     tag_push_requested = Signal(str)         # tag name
+    remote_branch_delete_requested = Signal(str, str)  # (remote, branch)
 
     def __init__(self, queries: QueryBus, commands: CommandBus,
                  remote_tag_cache=None, repo_path: str | None = None, parent=None) -> None:
@@ -295,9 +296,12 @@ class SidebarWidget(QWidget):
             menu.addAction("Delete").triggered.connect(
                 lambda: self.branch_delete_requested.emit(value))
         elif kind == "remote_branch":
-            remote = value.split("/")[0]
+            remote, branch = value.split("/", 1)
             menu.addAction("Fetch").triggered.connect(
                 lambda: self.fetch_requested.emit(remote))
+            menu.addSeparator()
+            menu.addAction("Delete").triggered.connect(
+                lambda: self.remote_branch_delete_requested.emit(remote, branch))
         elif kind == "stash":
             idx = int(value)
             menu.addAction("Pop").triggered.connect(

@@ -92,6 +92,10 @@ class BranchOps:
     def delete_branch(self, name: str) -> None:
         self._repo.branches.local[name].delete()
 
+    def delete_remote_branch(self, remote: str, branch: str) -> None:
+        """Delete a branch on the remote via `git push <remote> --delete <branch>`."""
+        self._run_git("push", remote, "--delete", branch)
+
     def rename_branch(self, old_name: str, new_name: str) -> None:
         self._repo.branches.local[old_name].rename(new_name)
 

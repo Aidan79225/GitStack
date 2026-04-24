@@ -256,6 +256,36 @@ def test_tag_delete_menu_emits_tag_name(sidebar, qtbot):
     assert blocker.args == ["v2.1"]
 
 
+# -- 7. Context menu: remote-branch delete emits remote and branch -----
+
+
+def test_remote_branch_delete_menu_emits_remote_and_branch(sidebar, qtbot):
+    w, _, _ = sidebar
+    item = _remote_branch_item("origin/feature", "abc123")
+    _add_section(w, "REMOTE BRANCHES", [item])
+
+    actions = _capture_menu_actions(w, item)
+    assert "Delete" in actions
+
+    with qtbot.waitSignal(w.remote_branch_delete_requested, timeout=1000) as blocker:
+        actions["Delete"].trigger()
+    assert blocker.args == ["origin", "feature"]
+
+
+def test_remote_branch_delete_handles_slash_in_branch_name(sidebar, qtbot):
+    """Branch names containing '/' must be preserved after splitting off
+    the remote prefix (e.g. origin/feature/foo → remote=origin, branch=feature/foo)."""
+    w, _, _ = sidebar
+    item = _remote_branch_item("origin/feature/foo", "abc123")
+    _add_section(w, "REMOTE BRANCHES", [item])
+
+    actions = _capture_menu_actions(w, item)
+
+    with qtbot.waitSignal(w.remote_branch_delete_requested, timeout=1000) as blocker:
+        actions["Delete"].trigger()
+    assert blocker.args == ["origin", "feature/foo"]
+
+
 # -- 6. Bus detach clears model -------------------------------------------
 
 
