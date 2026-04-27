@@ -67,8 +67,15 @@ class RepoChangeDetector(QObject):
                 app.applicationStateChanged.disconnect(self._on_app_state_changed)
             except (RuntimeError, TypeError):
                 pass  # Already disconnected.
-        self._watcher.removePaths(self._watcher.files())
-        self._watcher.removePaths(self._watcher.directories())
+        # Qt warns "removePaths: list is empty" if either argument is empty —
+        # which happens when the watch list never got populated (e.g. the path
+        # is a monorepo subdirectory with no .git/ of its own).
+        files = self._watcher.files()
+        if files:
+            self._watcher.removePaths(files)
+        directories = self._watcher.directories()
+        if directories:
+            self._watcher.removePaths(directories)
         self._debouncer.stop()
 
     def notify_self_reload(self) -> None:

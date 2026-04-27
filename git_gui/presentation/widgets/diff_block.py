@@ -411,6 +411,12 @@ def render_hunk_content_lines(
     from PySide6.QtCore import QTimer
     state = {"start": _CHUNK_SIZE}
 
+    # The cursor's document is the context: when its parent widget is deleted
+    # (e.g. _clear_blocks during commit/repo switch), the document is destroyed
+    # and Qt cancels the pending callback. Without this guard the callback fires
+    # and dereferences a dangling QTextDocument → access violation on Windows.
+    document = cursor.document()
+
     def _next_chunk():
         try:
             start = state["start"]
@@ -422,11 +428,11 @@ def render_hunk_content_lines(
             )
             state["start"] = end
             if end < total:
-                QTimer.singleShot(0, _next_chunk)
+                QTimer.singleShot(0, document, _next_chunk)
         except RuntimeError:
             pass
 
-    QTimer.singleShot(0, _next_chunk)
+    QTimer.singleShot(0, document, _next_chunk)
     return total
 
 
