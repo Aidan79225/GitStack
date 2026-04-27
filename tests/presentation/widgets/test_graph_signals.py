@@ -39,6 +39,7 @@ def _make_widget(qtbot, commits: list[Commit] | None = None) -> GraphWidget:
     w._has_more = False
     w._reload_limit = 50
     w._pending_scroll_oid = None
+    w._pending_merge_base = None
     w._pending_search = None
     w._stash_btn = MagicMock()
     w._update_column_widths = lambda: None
@@ -137,3 +138,27 @@ def test_search_with_has_more_triggers_full_reload_and_stores_query(qtbot):
 
     # Pending search should be stored for the post-reload dispatch.
     assert w._pending_search == "needle"
+
+
+# ── 5. reload_with_extra_tip computes merge base for diverged tips ───────
+
+
+def test_reload_with_extra_tip_computes_merge_base_for_diverged_tip(qtbot):
+    """When the clicked oid is not in the model, look up the merge base
+    with HEAD and stash it in _pending_merge_base before triggering reload."""
+    w = _make_widget(qtbot, commits=[_make_commit("HEAD")])
+    w._pending_merge_base = None
+
+    # Stub queries.
+    w._queries.get_head_oid.execute.return_value = "HEAD"
+    w._queries.get_merge_base.execute.return_value = "BASE"
+
+    # Spy on reload so we don't need a real worker thread.
+    w.reload = MagicMock()
+
+    w.reload_with_extra_tip("DIV")  # not in the model
+
+    w._queries.get_merge_base.execute.assert_called_once_with("HEAD", "DIV")
+    assert w._pending_scroll_oid == "DIV"
+    assert w._pending_merge_base == "BASE"
+    w.reload.assert_called_once_with(extra_tips=["DIV"])

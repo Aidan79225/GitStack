@@ -20,6 +20,7 @@ from git_gui.presentation.widgets.commit_info_delegate import (
 
 
 PAGE_SIZE = 50
+MAX_RELOAD_LIMIT = 2000  # cap doubling retry to avoid unbounded loads
 
 
 class _GraphTableView(QTableView):
@@ -202,6 +203,7 @@ class GraphWidget(QWidget):
         self._loading = False
         self._reload_limit = PAGE_SIZE
         self._pending_scroll_oid: str | None = None
+        self._pending_merge_base: str | None = None
         self._extra_tips: list[str] | None = None
 
         self._view = _GraphTableView()
@@ -329,15 +331,28 @@ class GraphWidget(QWidget):
         threading.Thread(target=_worker, daemon=True).start()
 
     def reload_with_extra_tip(self, oid: str) -> None:
-        """Reload graph including the given oid as an extra walker tip, then scroll to it."""
+        """Reload graph including the given oid as an extra walker tip, then
+        scroll to it. For diverged tips, also load down to the merge base with
+        HEAD so the lane converges into HEAD's mainline visually."""
         # If oid is already in the current commit list, just scroll and select
         for row in range(self._model.rowCount()):
             row_oid = self._model.data(self._model.index(row, 0), Qt.UserRole)
             if row_oid == oid:
                 self.scroll_to_oid(oid, select=True)
                 return
-        # Otherwise reload with extra tip and scroll after load
+
+        # Compute merge base with HEAD so the doubling retry knows when to stop.
+        merge_base: str | None = None
+        if self._queries is not None:
+            head_oid = self._queries.get_head_oid.execute() or ""
+            if head_oid and head_oid != oid:
+                try:
+                    merge_base = self._queries.get_merge_base.execute(head_oid, oid)
+                except Exception:
+                    merge_base = None
+
         self._pending_scroll_oid = oid
+        self._pending_merge_base = merge_base
         self.reload(extra_tips=[oid])
 
     def _on_reload_done(self, commits: list[Commit], branches: list[Branch],
