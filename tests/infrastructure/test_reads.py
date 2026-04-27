@@ -605,3 +605,61 @@ def test_get_commit_range_single_commit(repo_impl, repo_path):
     result = repo_impl.get_commit_range(commit_b.oid, head_a)
     assert len(result) == 1
     assert result[0].oid == commit_b.oid
+
+
+def test_merge_base_returns_common_ancestor(repo_path, repo_impl):
+    """Two diverged branches share their initial commit as merge base."""
+    repo = pygit2.Repository(str(repo_path))
+    sig = pygit2.Signature("T", "t@t.com")
+    base_oid = repo.head.target  # initial commit on master
+
+    # Branch "feat" off master, add commit A
+    repo.branches.local.create("feat", repo.head.peel())
+    (repo_path / "a.txt").write_text("a")
+    repo.index.add("a.txt")
+    repo.index.write()
+    tree_a = repo.index.write_tree()
+    a_oid = repo.create_commit("refs/heads/feat", sig, sig, "A", tree_a, [base_oid])
+
+    # Add commit B onto master
+    (repo_path / "b.txt").write_text("b")
+    repo.index.read()
+    repo.index.add("b.txt")
+    repo.index.write()
+    tree_b = repo.index.write_tree()
+    b_oid = repo.create_commit("refs/heads/master", sig, sig, "B", tree_b, [base_oid])
+
+    impl = Pygit2Repository(str(repo_path))
+    result = impl.merge_base(str(a_oid), str(b_oid))
+    assert result == str(base_oid)
+
+
+def test_merge_base_returns_none_for_disjoint(repo_path, repo_impl):
+    """Two unrelated commits (orphan branch) have no merge base."""
+    repo = pygit2.Repository(str(repo_path))
+    sig = pygit2.Signature("T", "t@t.com")
+    head_oid = repo.head.target
+
+    # Create an orphan branch (a fresh commit with no parents)
+    (repo_path / "orphan.txt").write_text("orphan")
+    repo.index.read(force=True)
+    repo.index.clear()
+    repo.index.add("orphan.txt")
+    repo.index.write()
+    tree = repo.index.write_tree()
+    orphan_oid = repo.create_commit(
+        "refs/heads/orphan", sig, sig, "orphan", tree, []
+    )
+
+    impl = Pygit2Repository(str(repo_path))
+    assert impl.merge_base(str(head_oid), str(orphan_oid)) is None
+
+
+def test_merge_base_returns_none_for_unknown_oid(repo_impl):
+    """Malformed or unknown oids yield None instead of raising."""
+    # Valid format but not in repo
+    bogus = "0" * 40
+    real = repo_impl.get_commits(limit=1)[0].oid
+    assert repo_impl.merge_base(real, bogus) is None
+    # Malformed hex — too short
+    assert repo_impl.merge_base(real, "abc") is None
