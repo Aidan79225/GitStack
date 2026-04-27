@@ -405,25 +405,29 @@ class GraphWidget(QWidget):
         self._update_column_widths()
 
         if self._pending_scroll_oid:
-            # Check if the target oid was found in loaded commits
-            found = any(
-                self._model.data(self._model.index(r, 0), Qt.UserRole) == self._pending_scroll_oid
+            loaded_oids = {
+                self._model.data(self._model.index(r, 0), Qt.UserRole)
                 for r in range(self._model.rowCount())
+            }
+            target_loaded = self._pending_scroll_oid in loaded_oids
+            base_loaded = (
+                self._pending_merge_base is None
+                or self._pending_merge_base in loaded_oids
             )
-            if found:
+            if target_loaded and base_loaded:
                 self.scroll_to_oid(self._pending_scroll_oid, select=True)
                 self._pending_scroll_oid = None
-            elif self._has_more:
-                # Target not found yet — retry with double the limit
+                self._pending_merge_base = None
+            elif self._has_more and self._reload_limit < MAX_RELOAD_LIMIT:
                 oid = self._pending_scroll_oid
                 tips = self._extra_tips
-                new_limit = self._reload_limit * 2
-                self._pending_scroll_oid = oid
+                new_limit = min(self._reload_limit * 2, MAX_RELOAD_LIMIT)
                 self._loading = False
                 self.reload(extra_tips=tips, limit=new_limit)
             else:
-                # No more commits to load — give up
+                # No more commits OR cap reached — accept partial result.
                 self._pending_scroll_oid = None
+                self._pending_merge_base = None
 
         # If a search was deferred until all commits were loaded, run it now.
         if self._pending_search:

@@ -162,3 +162,129 @@ def test_reload_with_extra_tip_computes_merge_base_for_diverged_tip(qtbot):
     assert w._pending_scroll_oid == "DIV"
     assert w._pending_merge_base == "BASE"
     w.reload.assert_called_once_with(extra_tips=["DIV"])
+
+
+# ── 6. _on_reload_done gates on merge base ──────────────────────────────
+
+
+def _make_commit_with_oid(oid):
+    """Helper for the gate tests — minimal Commit with just the oid set."""
+    return _make_commit(oid)
+
+
+def test_on_reload_done_retries_when_merge_base_not_loaded(qtbot):
+    """If the target is loaded but the merge base is not, and _has_more is
+    True and the limit is below the cap, reload is called again with the
+    limit doubled."""
+    from git_gui.presentation.models.graph_model import GraphModel
+    w = _make_widget(qtbot, commits=[_make_commit("HEAD"), _make_commit("DIV")])
+    # Reset model so the on_reload_done loop sees the loaded set after this call.
+    w._model = GraphModel(
+        [_make_commit("HEAD"), _make_commit("DIV")], {},
+    )
+    w._pending_scroll_oid = "DIV"
+    w._pending_merge_base = "BASE"  # NOT in the loaded set
+    w._has_more = True
+    # _reload_limit must equal len(commits) so _has_more stays True after the
+    # _on_reload_done recomputation (len(commits) == self._reload_limit).
+    w._reload_limit = 2
+    w._extra_tips = ["DIV"]
+    w.reload = MagicMock()
+
+    w._on_reload_done(
+        commits=[_make_commit("HEAD"), _make_commit("DIV")],
+        branches=[], tags=[], is_dirty=False, head_oid="HEAD",
+        repo_state_info=None, merge_head=None,
+    )
+
+    # Pending state preserved; reload called again with doubled limit.
+    assert w._pending_scroll_oid == "DIV"
+    assert w._pending_merge_base == "BASE"
+    w.reload.assert_called_once_with(extra_tips=["DIV"], limit=4)
+
+
+def test_on_reload_done_scrolls_when_target_and_base_both_loaded(qtbot):
+    """When both target and merge base are in the loaded set, scroll and
+    clear pending state — no further reload."""
+    from git_gui.presentation.models.graph_model import GraphModel
+    w = _make_widget(qtbot, commits=[
+        _make_commit("HEAD"), _make_commit("DIV"), _make_commit("BASE"),
+    ])
+    w._model = GraphModel([
+        _make_commit("HEAD"), _make_commit("DIV"), _make_commit("BASE"),
+    ], {})
+    w._pending_scroll_oid = "DIV"
+    w._pending_merge_base = "BASE"
+    w._has_more = True
+    w._reload_limit = 50
+    w._extra_tips = ["DIV"]
+    w.reload = MagicMock()
+
+    w._on_reload_done(
+        commits=[
+            _make_commit("HEAD"), _make_commit("DIV"), _make_commit("BASE"),
+        ],
+        branches=[], tags=[], is_dirty=False, head_oid="HEAD",
+        repo_state_info=None, merge_head=None,
+    )
+
+    assert w._pending_scroll_oid is None
+    assert w._pending_merge_base is None
+    w.reload.assert_not_called()
+    # scroll_to_oid hits _view.setCurrentIndex on the matching row.
+    assert w._view.setCurrentIndex.call_count == 1
+
+
+def test_on_reload_done_gives_up_at_max_reload_limit(qtbot):
+    """When _reload_limit is already at MAX_RELOAD_LIMIT and the merge base
+    is still not loaded, clear pending state and stop retrying."""
+    from git_gui.presentation.models.graph_model import GraphModel
+    from git_gui.presentation.widgets.graph import MAX_RELOAD_LIMIT
+    w = _make_widget(qtbot, commits=[_make_commit("HEAD"), _make_commit("DIV")])
+    w._model = GraphModel(
+        [_make_commit("HEAD"), _make_commit("DIV")], {},
+    )
+    w._pending_scroll_oid = "DIV"
+    w._pending_merge_base = "BASE"  # not in the loaded set
+    w._has_more = True
+    w._reload_limit = MAX_RELOAD_LIMIT  # already at the cap
+    w._extra_tips = ["DIV"]
+    w.reload = MagicMock()
+
+    w._on_reload_done(
+        commits=[_make_commit("HEAD"), _make_commit("DIV")],
+        branches=[], tags=[], is_dirty=False, head_oid="HEAD",
+        repo_state_info=None, merge_head=None,
+    )
+
+    assert w._pending_scroll_oid is None
+    assert w._pending_merge_base is None
+    w.reload.assert_not_called()
+
+
+def test_on_reload_done_skips_base_check_when_pending_merge_base_is_none(qtbot):
+    """When _pending_merge_base is None (HEAD unborn, branch == HEAD, or
+    disjoint histories), only the target gate applies — same as today's
+    behavior."""
+    from git_gui.presentation.models.graph_model import GraphModel
+    w = _make_widget(qtbot, commits=[_make_commit("HEAD"), _make_commit("DIV")])
+    w._model = GraphModel(
+        [_make_commit("HEAD"), _make_commit("DIV")], {},
+    )
+    w._pending_scroll_oid = "DIV"
+    w._pending_merge_base = None
+    w._has_more = True
+    w._reload_limit = 50
+    w._extra_tips = ["DIV"]
+    w.reload = MagicMock()
+
+    w._on_reload_done(
+        commits=[_make_commit("HEAD"), _make_commit("DIV")],
+        branches=[], tags=[], is_dirty=False, head_oid="HEAD",
+        repo_state_info=None, merge_head=None,
+    )
+
+    # Target loaded + base check skipped → scroll, no retry.
+    assert w._pending_scroll_oid is None
+    assert w._pending_merge_base is None
+    w.reload.assert_not_called()
