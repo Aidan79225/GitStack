@@ -5,6 +5,7 @@ from git_gui.domain.ports import IRepositoryReader
 from git_gui.application.queries import (
     GetCommitGraph, GetBranches, GetCommitFiles,
     GetFileDiff, GetWorkingTree, GetStashes,
+    GetMergeBase,
 )
 
 
@@ -184,3 +185,18 @@ class _FakeCommitRangeReader:
 def test_get_commit_range_passthrough():
     q = GetCommitRange(_FakeCommitRangeReader())
     assert q.execute("head", "base") == ["commit_head_base"]
+
+
+def test_get_merge_base_delegates_to_reader():
+    reader = _reader()
+    reader.merge_base.return_value = "deadbeef"
+    result = GetMergeBase(reader).execute("aaa", "bbb")
+    reader.merge_base.assert_called_once_with("aaa", "bbb")
+    assert result == "deadbeef"
+
+
+def test_get_merge_base_returns_none_when_reader_returns_none():
+    reader = _reader()
+    reader.merge_base.return_value = None
+    result = GetMergeBase(reader).execute("aaa", "bbb")
+    assert result is None
