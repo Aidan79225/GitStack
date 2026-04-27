@@ -1,6 +1,7 @@
 """QFileSystemWatcher set-up and fileChanged → reload propagation."""
 from __future__ import annotations
 import pytest
+from PySide6.QtCore import qInstallMessageHandler
 
 from git_gui.presentation.services.repo_change_detector import RepoChangeDetector
 
@@ -63,3 +64,29 @@ def test_stop_releases_all_watches(qtbot, repo_path):
 
     assert d._watcher.files() == []
     assert d._watcher.directories() == []
+
+
+def test_stop_on_empty_watcher_does_not_warn(qtbot, tmp_path):
+    """When stop() runs on a detector whose watch list never populated (e.g.
+    a monorepo subdirectory with no .git/ of its own), Qt must not emit
+    'QFileSystemWatcher::removePaths: list is empty'.
+
+    Captured via qInstallMessageHandler because Qt warnings on Windows do
+    not necessarily reach Python's stderr."""
+    messages: list[str] = []
+
+    def handler(_mode, _ctx, msg):
+        messages.append(msg)
+
+    old_handler = qInstallMessageHandler(handler)
+    try:
+        d = RepoChangeDetector(str(tmp_path), on_reload=lambda: None)
+        assert d._watcher.files() == []
+        assert d._watcher.directories() == []
+        d.stop()
+    finally:
+        qInstallMessageHandler(old_handler)
+
+    assert not any("list is empty" in m for m in messages), (
+        f"Qt should not warn on empty removePaths; messages were: {messages!r}"
+    )
