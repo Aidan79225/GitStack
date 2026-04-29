@@ -301,6 +301,11 @@ class GraphWidget(QWidget):
 
     def set_buses(self, queries: QueryBus | None, commands: CommandBus | None) -> None:
         self._queries = queries
+        # Reset per-click state — the previous repo's pending scroll target
+        # and extra tips are meaningless in the new repo.
+        self._extra_tips = None
+        self._pending_scroll_oid = None
+        self._pending_merge_base = None
         if queries is None:
             self._model.reload([], {})
         else:
@@ -310,7 +315,13 @@ class GraphWidget(QWidget):
         if self._loading:
             return
         self._loading = True
-        self._extra_tips = extra_tips
+        # Sticky semantic: a bare reload() (extra_tips=None) preserves the
+        # user's last-clicked diverged branch. Auto-reloads from the change
+        # detector and post-operation flows pass no tips and would otherwise
+        # wipe the user's selection. set_buses() explicitly clears state on
+        # repo switch.
+        effective_tips = extra_tips if extra_tips is not None else self._extra_tips
+        self._extra_tips = effective_tips
         self._reload_limit = limit
         queries = self._queries
 
@@ -319,7 +330,7 @@ class GraphWidget(QWidget):
         self._load_signals = signals  # prevent GC
 
         def _worker():
-            commits = queries.get_commit_graph.execute(limit=limit, extra_tips=extra_tips)
+            commits = queries.get_commit_graph.execute(limit=limit, extra_tips=effective_tips)
             branches = queries.get_branches.execute()
             tags = queries.get_tags.execute()
             dirty = queries.is_dirty.execute()

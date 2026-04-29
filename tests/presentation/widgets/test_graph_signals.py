@@ -6,7 +6,7 @@ emission, scroll_to_oid behavior, reload_with_extra_tip short-circuit,
 set_buses bus-detach, and search-with-pending-load dispatch."""
 from __future__ import annotations
 from datetime import datetime
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from PySide6.QtCore import Qt, QModelIndex
@@ -260,6 +260,64 @@ def test_on_reload_done_gives_up_at_max_reload_limit(qtbot):
     assert w._pending_scroll_oid is None
     assert w._pending_merge_base is None
     w.reload.assert_not_called()
+
+
+# ── 7. extra_tips stickiness across bare reload() ──────────────────────
+
+
+def test_reload_preserves_extra_tips_when_called_without_args(qtbot):
+    """A bare reload() (e.g. from MainWindow._reload via RepoChangeDetector)
+    must not wipe self._extra_tips. The user's last-clicked diverged branch
+    has to survive auto-reloads."""
+    w = _make_widget(qtbot)
+    w._extra_tips = ["DIV"]
+
+    # Replace the worker-spawning Thread so we don't actually fire a thread.
+    with patch("threading.Thread"):
+        w.reload()
+
+    assert w._extra_tips == ["DIV"], (
+        "bare reload() must preserve the user-selected extra tips"
+    )
+
+
+def test_reload_with_explicit_extra_tips_replaces_current(qtbot):
+    """An explicit extra_tips=[oid] argument replaces the current value."""
+    w = _make_widget(qtbot)
+    w._extra_tips = ["OLD"]
+
+    with patch("threading.Thread"):
+        w.reload(extra_tips=["NEW"])
+
+    assert w._extra_tips == ["NEW"]
+
+
+def test_reload_with_empty_list_replaces_with_empty(qtbot):
+    """An explicit extra_tips=[] argument clears the value (different from
+    None which preserves)."""
+    w = _make_widget(qtbot)
+    w._extra_tips = ["OLD"]
+
+    with patch("threading.Thread"):
+        w.reload(extra_tips=[])
+
+    assert w._extra_tips == []
+
+
+def test_set_buses_resets_extra_tips_and_pending_state(qtbot):
+    """set_buses must reset _extra_tips, _pending_scroll_oid, and
+    _pending_merge_base — they belong to the previous repo."""
+    w = _make_widget(qtbot)
+    w._extra_tips = ["DIV"]
+    w._pending_scroll_oid = "DIV"
+    w._pending_merge_base = "BASE"
+
+    with patch("threading.Thread"):
+        w.set_buses(MagicMock(), MagicMock())
+
+    assert w._extra_tips is None
+    assert w._pending_scroll_oid is None
+    assert w._pending_merge_base is None
 
 
 def test_on_reload_done_skips_base_check_when_pending_merge_base_is_none(qtbot):
