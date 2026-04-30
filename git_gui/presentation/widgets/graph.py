@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 from datetime import datetime
 from git_gui.resources import get_resource_path
-from PySide6.QtCore import QModelIndex, QObject, QSize, Qt, Signal
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, QObject, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QKeySequence, QPainter, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMenu, QPushButton, QStyle,
@@ -360,10 +360,23 @@ class GraphWidget(QWidget):
         Side effect: the active selection moves to HEAD so the diff pane shows
         HEAD's commit while the user inspects the clicked branch's lane in
         the graph."""
-        # Switch the highlighted row (and the diff pane) to HEAD as a stable
-        # reference point. Done before fast-path / reload so both paths leave
-        # the user with HEAD selected.
-        self._select_head_no_scroll()
+        # Look up HEAD's oid up front. Used to (a) move the active selection
+        # to HEAD now, (b) seed _selected_oid so the post-reload restore
+        # still selects HEAD even if the model doesn't currently contain it
+        # (e.g. clicking right after set_buses reset the model), and (c)
+        # gate the merge-base computation below.
+        head_oid: str | None = None
+        if self._queries is not None:
+            try:
+                head_oid = self._queries.get_head_oid.execute() or None
+            except Exception:
+                head_oid = None
+        if head_oid:
+            # Seed _selected_oid up front. _on_reload_done's restore reads
+            # this; the assignment doesn't depend on _select_head_no_scroll
+            # finding HEAD in the current (possibly stale or empty) model.
+            self._selected_oid = head_oid
+            self._select_head_no_scroll(head_oid)
 
         # If oid is already in the current commit list, just bring it into view.
         for row in range(self._model.rowCount()):
@@ -376,13 +389,11 @@ class GraphWidget(QWidget):
 
         # Compute merge base with HEAD so the doubling retry knows when to stop.
         merge_base: str | None = None
-        if self._queries is not None:
-            head_oid = self._queries.get_head_oid.execute() or ""
-            if head_oid and head_oid != oid:
-                try:
-                    merge_base = self._queries.get_merge_base.execute(head_oid, oid)
-                except Exception:
-                    merge_base = None
+        if head_oid and head_oid != oid:
+            try:
+                merge_base = self._queries.get_merge_base.execute(head_oid, oid)
+            except Exception:
+                merge_base = None
 
         self._pending_scroll_oid = oid
         self._pending_merge_base = merge_base
@@ -479,46 +490,31 @@ class GraphWidget(QWidget):
             self._pending_search = None
             self._run_search(needle)
 
-    def _select_head_no_scroll(self) -> None:
-        """Set the current row to HEAD's row without scrolling. Lets the
-        currentRowChanged → commit_selected cascade fire so the diff pane
-        updates to HEAD."""
-        if self._queries is None:
-            return
-        try:
-            head_oid = self._queries.get_head_oid.execute()
-        except Exception:
-            return
-        if not head_oid:
-            return
-        for row in range(self._model.rowCount()):
-            if self._model.data(self._model.index(row, 0), Qt.UserRole) == head_oid:
-                index = self._model.index(row, 0)
-                prev_auto = self._view.hasAutoScroll()
-                self._view.setAutoScroll(False)
-                try:
-                    self._view.setCurrentIndex(index)
-                finally:
-                    self._view.setAutoScroll(prev_auto)
-                return
+    def _select_head_no_scroll(self, head_oid: str) -> None:
+        """Move the highlighted row to HEAD's row without scrolling. Used
+        when clicking a sidebar branch so the diff pane shows HEAD while
+        the user inspects the clicked branch's lane in the graph."""
+        self._select_oid_no_scroll(head_oid)
 
     def _restore_selection_no_scroll(self, oid: str) -> None:
-        """Set the current row to the one matching `oid` without scrolling.
-        Used after a model reset to keep the graph's highlight in sync with
-        the diff pane while preserving any scroll position established by
-        the gate. Lets currentRowChanged → commit_selected fire so the view
-        actually repaints the highlight (signal-blocking suppresses the
-        repaint and was the cause of an earlier "no highlight" bug); the
-        diff pane reloads the same commit, which is idempotent."""
+        """Re-apply the highlighted row to the row matching `oid` after a
+        model reset, without scrolling. Used in _on_reload_done so the
+        graph's highlight stays in sync with the diff pane while preserving
+        any scroll position established by the gate."""
+        self._select_oid_no_scroll(oid)
+
+    def _select_oid_no_scroll(self, oid: str) -> None:
+        """Find the row matching `oid` and select it (full-row highlight)
+        via the selection model directly, with explicit ClearAndSelect|Rows
+        flags. Avoids view.setCurrentIndex which auto-scrolls and which
+        produced unreliable highlight painting in this codebase."""
         for row in range(self._model.rowCount()):
             if self._model.data(self._model.index(row, 0), Qt.UserRole) == oid:
                 index = self._model.index(row, 0)
-                prev_auto = self._view.hasAutoScroll()
-                self._view.setAutoScroll(False)
-                try:
-                    self._view.setCurrentIndex(index)
-                finally:
-                    self._view.setAutoScroll(prev_auto)
+                self._view.selectionModel().setCurrentIndex(
+                    index,
+                    QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows,
+                )
                 return
 
     def _get_visible_rows(self) -> tuple[int, int]:

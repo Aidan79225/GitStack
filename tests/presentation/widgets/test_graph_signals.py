@@ -112,8 +112,9 @@ def test_reload_with_extra_tip_short_circuits_when_oid_present(qtbot):
     # The graph should scroll to BRANCH (viewport navigates) and select HEAD
     # (highlight stays on HEAD's row, diff pane shows HEAD).
     assert w._view.scrollTo.call_count == 1
-    assert w._view.setCurrentIndex.call_count == 1
-    selected_index = w._view.setCurrentIndex.call_args.args[0]
+    sm_set_current = w._view.selectionModel().setCurrentIndex
+    assert sm_set_current.call_count == 1
+    selected_index = sm_set_current.call_args.args[0]
     assert selected_index.row() == 0  # HEAD's row
 
 
@@ -364,6 +365,7 @@ def test_reload_with_extra_tip_selects_head_not_branch_tip(qtbot):
     """Clicking a branch in the sidebar should scroll the graph to the
     branch tip (viewport) but select HEAD's row (highlight). The diff pane
     therefore shows HEAD's commit while the user inspects the lane."""
+    from PySide6.QtCore import QItemSelectionModel
     w = _make_widget(qtbot, commits=[
         _make_commit("HEAD"), _make_commit("BRANCH_TIP"),
     ])
@@ -376,10 +378,31 @@ def test_reload_with_extra_tip_selects_head_not_branch_tip(qtbot):
     assert w._view.scrollTo.call_count == 1
     scrolled_index = w._view.scrollTo.call_args.args[0]
     assert scrolled_index.row() == 1
-    # setCurrentIndex points at HEAD (row 0) — highlight on HEAD.
-    assert w._view.setCurrentIndex.call_count == 1
-    selected_index = w._view.setCurrentIndex.call_args.args[0]
+    # selectionModel.setCurrentIndex points at HEAD (row 0) with row-select
+    # flags so the highlight covers HEAD's full row.
+    sm_set_current = w._view.selectionModel().setCurrentIndex
+    assert sm_set_current.call_count == 1
+    selected_index = sm_set_current.call_args.args[0]
     assert selected_index.row() == 0
+    flags = sm_set_current.call_args.args[1]
+    assert flags & QItemSelectionModel.Rows
+    assert flags & QItemSelectionModel.ClearAndSelect
+
+
+def test_reload_with_extra_tip_seeds_selected_oid_for_post_reload_restore(qtbot):
+    """Even when HEAD is not in the current model (e.g. clicking right
+    after a repo switch reset the model), reload_with_extra_tip must
+    seed _selected_oid with HEAD so _on_reload_done's restore can pick
+    HEAD's row once the new commits arrive."""
+    w = _make_widget(qtbot)
+    w._model = GraphModel([], {})  # empty — HEAD not loaded yet
+    w.reload = MagicMock()
+    w._queries.get_head_oid.execute.return_value = "HEAD"
+    w._queries.get_merge_base.execute.return_value = "BASE"
+
+    w.reload_with_extra_tip("DIV")
+
+    assert w._selected_oid == "HEAD"
 
 
 def test_on_row_changed_records_selected_oid(qtbot):
@@ -398,10 +421,11 @@ def test_on_row_changed_records_selected_oid(qtbot):
 
 def test_on_reload_done_restores_selection_without_scrolling(qtbot):
     """After a model reset clears the current row, _on_reload_done should
-    re-select the row matching _selected_oid — but without scrolling and
-    without re-emitting commit_selected. This keeps the graph highlight in
-    sync with the diff pane."""
+    re-select the row matching _selected_oid via the selection model with
+    full-row flags. The selection model path doesn't auto-scroll, so the
+    gate's scroll position is preserved."""
     from git_gui.presentation.models.graph_model import GraphModel
+    from PySide6.QtCore import QItemSelectionModel
     w = _make_widget(qtbot)
     w._selected_oid = "HEAD"
     w._model = GraphModel([_make_commit("HEAD"), _make_commit("OTHER")], {})
@@ -412,20 +436,13 @@ def test_on_reload_done_restores_selection_without_scrolling(qtbot):
         repo_state_info=None, merge_head=None,
     )
 
-    # setCurrentIndex was called once with row 0 (HEAD's row).
-    assert w._view.setCurrentIndex.call_count == 1
-    called_index = w._view.setCurrentIndex.call_args.args[0]
+    sm_set_current = w._view.selectionModel().setCurrentIndex
+    assert sm_set_current.call_count == 1
+    called_index = sm_set_current.call_args.args[0]
     assert called_index.row() == 0
-
-    # setAutoScroll(False) was used to suppress the auto-scroll that
-    # setCurrentIndex would otherwise trigger.
-    auto_scroll_calls = [
-        c for c in w._view.setAutoScroll.call_args_list
-        if c.args and c.args[0] is False
-    ]
-    assert len(auto_scroll_calls) >= 1, (
-        "setAutoScroll(False) should be called to suppress scroll on restore"
-    )
+    flags = sm_set_current.call_args.args[1]
+    assert flags & QItemSelectionModel.Rows
+    assert flags & QItemSelectionModel.ClearAndSelect
 
 
 def test_on_reload_done_skips_restore_when_selected_oid_is_none(qtbot):
@@ -441,7 +458,7 @@ def test_on_reload_done_skips_restore_when_selected_oid_is_none(qtbot):
         repo_state_info=None, merge_head=None,
     )
 
-    assert w._view.setCurrentIndex.call_count == 0
+    assert w._view.selectionModel().setCurrentIndex.call_count == 0
 
 
 def test_on_reload_done_skips_restore_during_retry(qtbot):
@@ -466,7 +483,7 @@ def test_on_reload_done_skips_restore_during_retry(qtbot):
 
     # Retry was triggered — restore should not have run.
     w.reload.assert_called_once()
-    assert w._view.setCurrentIndex.call_count == 0
+    assert w._view.selectionModel().setCurrentIndex.call_count == 0
 
 
 def test_set_buses_resets_selected_oid(qtbot):
