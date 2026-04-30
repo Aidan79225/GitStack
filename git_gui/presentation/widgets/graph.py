@@ -355,14 +355,22 @@ class GraphWidget(QWidget):
     def reload_with_extra_tip(self, oid: str) -> None:
         """Reload graph including the given oid as an extra walker tip, then
         scroll to it. For diverged tips, also load down to the merge base with
-        HEAD so the lane converges into HEAD's mainline visually."""
-        # If oid is already in the current commit list, just scroll and select
+        HEAD so the lane converges into HEAD's mainline visually.
+
+        Side effect: the active selection moves to HEAD so the diff pane shows
+        HEAD's commit while the user inspects the clicked branch's lane in
+        the graph."""
+        # Switch the highlighted row (and the diff pane) to HEAD as a stable
+        # reference point. Done before fast-path / reload so both paths leave
+        # the user with HEAD selected.
+        self._select_head_no_scroll()
+
+        # If oid is already in the current commit list, just bring it into view.
         for row in range(self._model.rowCount()):
             row_oid = self._model.data(self._model.index(row, 0), Qt.UserRole)
             if row_oid == oid:
-                # select=False — clicking a branch in the sidebar should bring
-                # the lane into view, not steal selection from whatever row
-                # the user is currently inspecting in the diff pane.
+                # select=False — the highlight stays on HEAD (set above);
+                # only the viewport moves to show the clicked branch.
                 self.scroll_to_oid(oid, select=False)
                 return
 
@@ -470,6 +478,29 @@ class GraphWidget(QWidget):
             needle = self._pending_search
             self._pending_search = None
             self._run_search(needle)
+
+    def _select_head_no_scroll(self) -> None:
+        """Set the current row to HEAD's row without scrolling. Lets the
+        currentRowChanged → commit_selected cascade fire so the diff pane
+        updates to HEAD."""
+        if self._queries is None:
+            return
+        try:
+            head_oid = self._queries.get_head_oid.execute()
+        except Exception:
+            return
+        if not head_oid:
+            return
+        for row in range(self._model.rowCount()):
+            if self._model.data(self._model.index(row, 0), Qt.UserRole) == head_oid:
+                index = self._model.index(row, 0)
+                prev_auto = self._view.hasAutoScroll()
+                self._view.setAutoScroll(False)
+                try:
+                    self._view.setCurrentIndex(index)
+                finally:
+                    self._view.setAutoScroll(prev_auto)
+                return
 
     def _restore_selection_no_scroll(self, oid: str) -> None:
         """Set the current row to the one matching `oid` without scrolling

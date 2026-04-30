@@ -99,19 +99,22 @@ def test_scroll_to_oid_with_select_sets_current_index(qtbot):
 
 def test_reload_with_extra_tip_short_circuits_when_oid_present(qtbot):
     w = _make_widget(qtbot, commits=[
-        _make_commit("X"), _make_commit("Y"),
+        _make_commit("HEAD"), _make_commit("BRANCH"),
     ])
     # Ensure reload is NOT called; replace it with a spy.
     w.reload = MagicMock()
+    # Stub head_oid so _select_head_no_scroll can find HEAD's row.
+    w._queries.get_head_oid.execute.return_value = "HEAD"
 
-    w.reload_with_extra_tip("X")
+    w.reload_with_extra_tip("BRANCH")
 
     w.reload.assert_not_called()
-    # The graph should scroll to X but NOT take selection — scrollTo fires,
-    # setCurrentIndex does not. This keeps the diff pane on the user's
-    # previously-selected row.
+    # The graph should scroll to BRANCH (viewport navigates) and select HEAD
+    # (highlight stays on HEAD's row, diff pane shows HEAD).
     assert w._view.scrollTo.call_count == 1
-    assert w._view.setCurrentIndex.call_count == 0
+    assert w._view.setCurrentIndex.call_count == 1
+    selected_index = w._view.setCurrentIndex.call_args.args[0]
+    assert selected_index.row() == 0  # HEAD's row
 
 
 # ── 4. set_buses(None, None) clears model ────────────────────────────────
@@ -357,21 +360,26 @@ def test_reload_with_explicit_limit_replaces_current(qtbot):
     assert w._reload_limit == 999_999
 
 
-def test_reload_with_extra_tip_does_not_steal_selection(qtbot):
-    """Clicking a branch in the sidebar must scroll the graph to the branch
-    tip but must NOT change the current row selection — otherwise the diff
-    pane would switch away from whatever row the user was inspecting."""
+def test_reload_with_extra_tip_selects_head_not_branch_tip(qtbot):
+    """Clicking a branch in the sidebar should scroll the graph to the
+    branch tip (viewport) but select HEAD's row (highlight). The diff pane
+    therefore shows HEAD's commit while the user inspects the lane."""
     w = _make_widget(qtbot, commits=[
         _make_commit("HEAD"), _make_commit("BRANCH_TIP"),
     ])
-    w.reload = MagicMock()  # we don't care about the reload path here
+    w.reload = MagicMock()
+    w._queries.get_head_oid.execute.return_value = "HEAD"
 
     w.reload_with_extra_tip("BRANCH_TIP")
 
-    # scrollTo was called (graph navigates to the branch tip)…
+    # scrollTo points at BRANCH_TIP (row 1) — viewport navigation.
     assert w._view.scrollTo.call_count == 1
-    # …but selection is not moved.
-    assert w._view.setCurrentIndex.call_count == 0
+    scrolled_index = w._view.scrollTo.call_args.args[0]
+    assert scrolled_index.row() == 1
+    # setCurrentIndex points at HEAD (row 0) — highlight on HEAD.
+    assert w._view.setCurrentIndex.call_count == 1
+    selected_index = w._view.setCurrentIndex.call_args.args[0]
+    assert selected_index.row() == 0
 
 
 def test_on_row_changed_records_selected_oid(qtbot):
