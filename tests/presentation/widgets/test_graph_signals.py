@@ -98,24 +98,22 @@ def test_scroll_to_oid_with_select_sets_current_index(qtbot):
 
 
 def test_reload_with_extra_tip_short_circuits_when_oid_present(qtbot):
+    """When the clicked branch's tip is already in the model, scroll-and-
+    select it directly via scroll_to_oid(select=True) — no reload needed."""
     w = _make_widget(qtbot, commits=[
         _make_commit("HEAD"), _make_commit("BRANCH"),
     ])
-    # Ensure reload is NOT called; replace it with a spy.
     w.reload = MagicMock()
-    # Stub head_oid so _select_head_no_scroll can find HEAD's row.
-    w._queries.get_head_oid.execute.return_value = "HEAD"
 
     w.reload_with_extra_tip("BRANCH")
 
     w.reload.assert_not_called()
-    # The graph should scroll to BRANCH (viewport navigates) and select HEAD
-    # (highlight stays on HEAD's row, diff pane shows HEAD).
+    # scroll_to_oid(select=True) calls both scrollTo and view.setCurrentIndex
+    # on BRANCH's row.
     assert w._view.scrollTo.call_count == 1
-    sm_set_current = w._view.selectionModel().setCurrentIndex
-    assert sm_set_current.call_count == 1
-    selected_index = sm_set_current.call_args.args[0]
-    assert selected_index.row() == 0  # HEAD's row
+    assert w._view.setCurrentIndex.call_count == 1
+    selected_index = w._view.setCurrentIndex.call_args.args[0]
+    assert selected_index.row() == 1  # BRANCH's row
 
 
 # ── 4. set_buses(None, None) clears model ────────────────────────────────
@@ -240,10 +238,12 @@ def test_on_reload_done_scrolls_when_target_and_base_both_loaded(qtbot):
     assert w._pending_scroll_oid is None
     assert w._pending_merge_base is None
     w.reload.assert_not_called()
-    # scroll_to_oid is called with select=False — scrollTo fires but the
-    # current selection (e.g. HEAD's row) is preserved.
+    # scroll_to_oid(select=True) — scroll AND select the clicked branch's
+    # tip so its row is highlighted and its commit loads in the diff pane.
     assert w._view.scrollTo.call_count == 1
-    assert w._view.setCurrentIndex.call_count == 0
+    assert w._view.setCurrentIndex.call_count == 1
+    selected_index = w._view.setCurrentIndex.call_args.args[0]
+    assert selected_index.row() == 1  # DIV's row
 
 
 def test_on_reload_done_gives_up_at_max_reload_limit(qtbot):
@@ -361,48 +361,24 @@ def test_reload_with_explicit_limit_replaces_current(qtbot):
     assert w._reload_limit == 999_999
 
 
-def test_reload_with_extra_tip_selects_head_not_branch_tip(qtbot):
+def test_reload_with_extra_tip_selects_clicked_branch_tip(qtbot):
     """Clicking a branch in the sidebar should scroll the graph to the
-    branch tip (viewport) but select HEAD's row (highlight). The diff pane
-    therefore shows HEAD's commit while the user inspects the lane."""
-    from PySide6.QtCore import QItemSelectionModel
+    branch's tip and select it — the diff pane updates to show that
+    tip's commit (the branch the user navigated to)."""
     w = _make_widget(qtbot, commits=[
         _make_commit("HEAD"), _make_commit("BRANCH_TIP"),
     ])
     w.reload = MagicMock()
-    w._queries.get_head_oid.execute.return_value = "HEAD"
 
     w.reload_with_extra_tip("BRANCH_TIP")
 
-    # scrollTo points at BRANCH_TIP (row 1) — viewport navigation.
+    # scroll_to_oid(select=True) — scroll AND select on the same row.
     assert w._view.scrollTo.call_count == 1
     scrolled_index = w._view.scrollTo.call_args.args[0]
-    assert scrolled_index.row() == 1
-    # selectionModel.setCurrentIndex points at HEAD (row 0) with row-select
-    # flags so the highlight covers HEAD's full row.
-    sm_set_current = w._view.selectionModel().setCurrentIndex
-    assert sm_set_current.call_count == 1
-    selected_index = sm_set_current.call_args.args[0]
-    assert selected_index.row() == 0
-    flags = sm_set_current.call_args.args[1]
-    assert flags & QItemSelectionModel.Rows
-    assert flags & QItemSelectionModel.ClearAndSelect
-
-
-def test_reload_with_extra_tip_seeds_selected_oid_for_post_reload_restore(qtbot):
-    """Even when HEAD is not in the current model (e.g. clicking right
-    after a repo switch reset the model), reload_with_extra_tip must
-    seed _selected_oid with HEAD so _on_reload_done's restore can pick
-    HEAD's row once the new commits arrive."""
-    w = _make_widget(qtbot)
-    w._model = GraphModel([], {})  # empty — HEAD not loaded yet
-    w.reload = MagicMock()
-    w._queries.get_head_oid.execute.return_value = "HEAD"
-    w._queries.get_merge_base.execute.return_value = "BASE"
-
-    w.reload_with_extra_tip("DIV")
-
-    assert w._selected_oid == "HEAD"
+    assert scrolled_index.row() == 1  # BRANCH_TIP's row
+    assert w._view.setCurrentIndex.call_count == 1
+    selected_index = w._view.setCurrentIndex.call_args.args[0]
+    assert selected_index.row() == 1
 
 
 def test_on_row_changed_records_selected_oid(qtbot):

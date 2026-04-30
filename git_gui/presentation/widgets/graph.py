@@ -354,46 +354,26 @@ class GraphWidget(QWidget):
 
     def reload_with_extra_tip(self, oid: str) -> None:
         """Reload graph including the given oid as an extra walker tip, then
-        scroll to it. For diverged tips, also load down to the merge base with
-        HEAD so the lane converges into HEAD's mainline visually.
-
-        Side effect: the active selection moves to HEAD so the diff pane shows
-        HEAD's commit while the user inspects the clicked branch's lane in
-        the graph."""
-        # Look up HEAD's oid up front. Used to (a) move the active selection
-        # to HEAD now, (b) seed _selected_oid so the post-reload restore
-        # still selects HEAD even if the model doesn't currently contain it
-        # (e.g. clicking right after set_buses reset the model), and (c)
-        # gate the merge-base computation below.
-        head_oid: str | None = None
-        if self._queries is not None:
-            try:
-                head_oid = self._queries.get_head_oid.execute() or None
-            except Exception:
-                head_oid = None
-        if head_oid:
-            # Seed _selected_oid up front. _on_reload_done's restore reads
-            # this; the assignment doesn't depend on _select_head_no_scroll
-            # finding HEAD in the current (possibly stale or empty) model.
-            self._selected_oid = head_oid
-            self._select_head_no_scroll(head_oid)
-
-        # If oid is already in the current commit list, just bring it into view.
+        scroll to it and select it (highlighting the branch's tip row and
+        loading its commit into the diff pane). For diverged tips, also load
+        down to the merge base with HEAD so the lane converges into HEAD's
+        mainline visually."""
+        # If oid is already in the current commit list, just scroll and select
         for row in range(self._model.rowCount()):
             row_oid = self._model.data(self._model.index(row, 0), Qt.UserRole)
             if row_oid == oid:
-                # select=False — the highlight stays on HEAD (set above);
-                # only the viewport moves to show the clicked branch.
-                self.scroll_to_oid(oid, select=False)
+                self.scroll_to_oid(oid, select=True)
                 return
 
         # Compute merge base with HEAD so the doubling retry knows when to stop.
         merge_base: str | None = None
-        if head_oid and head_oid != oid:
-            try:
-                merge_base = self._queries.get_merge_base.execute(head_oid, oid)
-            except Exception:
-                merge_base = None
+        if self._queries is not None:
+            head_oid = self._queries.get_head_oid.execute() or ""
+            if head_oid and head_oid != oid:
+                try:
+                    merge_base = self._queries.get_merge_base.execute(head_oid, oid)
+                except Exception:
+                    merge_base = None
 
         self._pending_scroll_oid = oid
         self._pending_merge_base = merge_base
@@ -460,8 +440,7 @@ class GraphWidget(QWidget):
                 or self._pending_merge_base in loaded_oids
             )
             if target_loaded and base_loaded:
-                # select=False — see reload_with_extra_tip for rationale.
-                self.scroll_to_oid(self._pending_scroll_oid, select=False)
+                self.scroll_to_oid(self._pending_scroll_oid, select=True)
                 self._pending_scroll_oid = None
                 self._pending_merge_base = None
             elif self._has_more and self._reload_limit < MAX_RELOAD_LIMIT:
@@ -490,24 +469,11 @@ class GraphWidget(QWidget):
             self._pending_search = None
             self._run_search(needle)
 
-    def _select_head_no_scroll(self, head_oid: str) -> None:
-        """Move the highlighted row to HEAD's row without scrolling. Used
-        when clicking a sidebar branch so the diff pane shows HEAD while
-        the user inspects the clicked branch's lane in the graph."""
-        self._select_oid_no_scroll(head_oid)
-
     def _restore_selection_no_scroll(self, oid: str) -> None:
         """Re-apply the highlighted row to the row matching `oid` after a
         model reset, without scrolling. Used in _on_reload_done so the
-        graph's highlight stays in sync with the diff pane while preserving
-        any scroll position established by the gate."""
-        self._select_oid_no_scroll(oid)
-
-    def _select_oid_no_scroll(self, oid: str) -> None:
-        """Find the row matching `oid` and select it (full-row highlight)
-        via the selection model directly, with explicit ClearAndSelect|Rows
-        flags. Avoids view.setCurrentIndex which auto-scrolls and which
-        produced unreliable highlight painting in this codebase."""
+        graph's highlight survives auto-reloads (RepoChangeDetector,
+        post-operation flows) without losing the user's selection."""
         for row in range(self._model.rowCount()):
             if self._model.data(self._model.index(row, 0), Qt.UserRole) == oid:
                 index = self._model.index(row, 0)
