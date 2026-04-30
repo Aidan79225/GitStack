@@ -356,7 +356,10 @@ class GraphWidget(QWidget):
         for row in range(self._model.rowCount()):
             row_oid = self._model.data(self._model.index(row, 0), Qt.UserRole)
             if row_oid == oid:
-                self.scroll_to_oid(oid, select=True)
+                # select=False — clicking a branch in the sidebar should bring
+                # the lane into view, not steal selection from whatever row
+                # the user is currently inspecting in the diff pane.
+                self.scroll_to_oid(oid, select=False)
                 return
 
         # Compute merge base with HEAD so the doubling retry knows when to stop.
@@ -433,7 +436,8 @@ class GraphWidget(QWidget):
                 or self._pending_merge_base in loaded_oids
             )
             if target_loaded and base_loaded:
-                self.scroll_to_oid(self._pending_scroll_oid, select=True)
+                # select=False — see reload_with_extra_tip for rationale.
+                self.scroll_to_oid(self._pending_scroll_oid, select=False)
                 self._pending_scroll_oid = None
                 self._pending_merge_base = None
             elif self._has_more and self._reload_limit < MAX_RELOAD_LIMIT:

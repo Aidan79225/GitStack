@@ -106,8 +106,11 @@ def test_reload_with_extra_tip_short_circuits_when_oid_present(qtbot):
     w.reload_with_extra_tip("X")
 
     w.reload.assert_not_called()
-    # scroll_to_oid should have been called — verify via _view.setCurrentIndex.
-    assert w._view.setCurrentIndex.call_count == 1
+    # The graph should scroll to X but NOT take selection — scrollTo fires,
+    # setCurrentIndex does not. This keeps the diff pane on the user's
+    # previously-selected row.
+    assert w._view.scrollTo.call_count == 1
+    assert w._view.setCurrentIndex.call_count == 0
 
 
 # ── 4. set_buses(None, None) clears model ────────────────────────────────
@@ -232,8 +235,10 @@ def test_on_reload_done_scrolls_when_target_and_base_both_loaded(qtbot):
     assert w._pending_scroll_oid is None
     assert w._pending_merge_base is None
     w.reload.assert_not_called()
-    # scroll_to_oid hits _view.setCurrentIndex on the matching row.
-    assert w._view.setCurrentIndex.call_count == 1
+    # scroll_to_oid is called with select=False — scrollTo fires but the
+    # current selection (e.g. HEAD's row) is preserved.
+    assert w._view.scrollTo.call_count == 1
+    assert w._view.setCurrentIndex.call_count == 0
 
 
 def test_on_reload_done_gives_up_at_max_reload_limit(qtbot):
@@ -349,6 +354,23 @@ def test_reload_with_explicit_limit_replaces_current(qtbot):
         w.reload(limit=999_999)
 
     assert w._reload_limit == 999_999
+
+
+def test_reload_with_extra_tip_does_not_steal_selection(qtbot):
+    """Clicking a branch in the sidebar must scroll the graph to the branch
+    tip but must NOT change the current row selection — otherwise the diff
+    pane would switch away from whatever row the user was inspecting."""
+    w = _make_widget(qtbot, commits=[
+        _make_commit("HEAD"), _make_commit("BRANCH_TIP"),
+    ])
+    w.reload = MagicMock()  # we don't care about the reload path here
+
+    w.reload_with_extra_tip("BRANCH_TIP")
+
+    # scrollTo was called (graph navigates to the branch tip)…
+    assert w._view.scrollTo.call_count == 1
+    # …but selection is not moved.
+    assert w._view.setCurrentIndex.call_count == 0
 
 
 def test_set_buses_resets_reload_limit_to_page_size(qtbot):
