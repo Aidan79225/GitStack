@@ -198,3 +198,11 @@ class GetCommitRange:
 
     def execute(self, head_oid: str, base_oid: str) -> list[Commit]:
         return self._reader.get_commit_range(head_oid, base_oid)
+
+
+class GetMergeBase:
+    def __init__(self, reader: IRepositoryReader) -> None:
+        self._reader = reader
+
+    def execute(self, oid_a: str, oid_b: str) -> str | None:
+        return self._reader.merge_base(oid_a, oid_b)

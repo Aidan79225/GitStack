@@ -35,6 +35,9 @@ def _make_widget(qtbot) -> GraphWidget:
     w._has_more = True
     w._reload_limit = 50
     w._pending_scroll_oid = None
+    w._pending_merge_base = None
+    w._extra_tips = None
+    w._selected_oid = None
     w._pending_search = None
 
     # _stash_btn is called with setVisible; use a simple mock

@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 from datetime import datetime
 from git_gui.resources import get_resource_path
-from PySide6.QtCore import QModelIndex, QObject, QSize, Qt, Signal
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, QObject, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QKeySequence, QPainter, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMenu, QPushButton, QStyle,
@@ -20,6 +20,7 @@ from git_gui.presentation.widgets.commit_info_delegate import (
 
 
 PAGE_SIZE = 50
+MAX_RELOAD_LIMIT = 2000  # cap doubling retry to avoid unbounded loads
 
 
 class _GraphTableView(QTableView):
@@ -202,7 +203,11 @@ class GraphWidget(QWidget):
         self._loading = False
         self._reload_limit = PAGE_SIZE
         self._pending_scroll_oid: str | None = None
+        self._pending_merge_base: str | None = None
         self._extra_tips: list[str] | None = None
+        # Tracks the currently-selected commit so the highlight can be
+        # restored after a model reset (which clears the view's current row).
+        self._selected_oid: str | None = None
 
         self._view = _GraphTableView()
         self._view.setSelectionBehavior(QTableView.SelectRows)
@@ -299,17 +304,36 @@ class GraphWidget(QWidget):
 
     def set_buses(self, queries: QueryBus | None, commands: CommandBus | None) -> None:
         self._queries = queries
+        # Reset per-click state — the previous repo's selection is meaningless
+        # in the new repo. Reset _reload_limit too so the new repo starts at
+        # PAGE_SIZE; otherwise a previously-doubled limit (e.g. 2000 for a
+        # deep divergence) carries into the new repo and over-loads on first
+        # render.
+        self._extra_tips = None
+        self._pending_scroll_oid = None
+        self._pending_merge_base = None
+        self._selected_oid = None
+        self._reload_limit = PAGE_SIZE
         if queries is None:
             self._model.reload([], {})
         else:
             self.reload()
 
-    def reload(self, extra_tips: list[str] | None = None, limit: int = PAGE_SIZE) -> None:
+    def reload(self, extra_tips: list[str] | None = None, limit: int | None = None) -> None:
         if self._loading:
             return
         self._loading = True
-        self._extra_tips = extra_tips
-        self._reload_limit = limit
+        # Sticky semantic: a bare reload() preserves both the user's last-
+        # clicked diverged branch (extra_tips) and the load size that was
+        # needed to draw its lane (limit). Auto-reloads from the change
+        # detector and post-operation flows pass neither, and would otherwise
+        # regress to PAGE_SIZE — losing the merge base from the loaded set
+        # and reverting the diverged lane to a floating circle.
+        # set_buses() explicitly clears state on repo switch.
+        effective_tips = extra_tips if extra_tips is not None else self._extra_tips
+        effective_limit = limit if limit is not None else self._reload_limit
+        self._extra_tips = effective_tips
+        self._reload_limit = effective_limit
         queries = self._queries
 
         signals = _LoadSignals()
@@ -317,7 +341,7 @@ class GraphWidget(QWidget):
         self._load_signals = signals  # prevent GC
 
         def _worker():
-            commits = queries.get_commit_graph.execute(limit=limit, extra_tips=extra_tips)
+            commits = queries.get_commit_graph.execute(limit=effective_limit, extra_tips=effective_tips)
             branches = queries.get_branches.execute()
             tags = queries.get_tags.execute()
             dirty = queries.is_dirty.execute()
@@ -329,15 +353,30 @@ class GraphWidget(QWidget):
         threading.Thread(target=_worker, daemon=True).start()
 
     def reload_with_extra_tip(self, oid: str) -> None:
-        """Reload graph including the given oid as an extra walker tip, then scroll to it."""
+        """Reload graph including the given oid as an extra walker tip, then
+        scroll to it and select it (highlighting the branch's tip row and
+        loading its commit into the diff pane). For diverged tips, also load
+        down to the merge base with HEAD so the lane converges into HEAD's
+        mainline visually."""
         # If oid is already in the current commit list, just scroll and select
         for row in range(self._model.rowCount()):
             row_oid = self._model.data(self._model.index(row, 0), Qt.UserRole)
             if row_oid == oid:
                 self.scroll_to_oid(oid, select=True)
                 return
-        # Otherwise reload with extra tip and scroll after load
+
+        # Compute merge base with HEAD so the doubling retry knows when to stop.
+        merge_base: str | None = None
+        if self._queries is not None:
+            head_oid = self._queries.get_head_oid.execute() or ""
+            if head_oid and head_oid != oid:
+                try:
+                    merge_base = self._queries.get_merge_base.execute(head_oid, oid)
+                except Exception:
+                    merge_base = None
+
         self._pending_scroll_oid = oid
+        self._pending_merge_base = merge_base
         self.reload(extra_tips=[oid])
 
     def _on_reload_done(self, commits: list[Commit], branches: list[Branch],
@@ -389,32 +428,60 @@ class GraphWidget(QWidget):
         self._model.reload(all_commits, refs, head_branch)
         self._update_column_widths()
 
+        retrying = False
         if self._pending_scroll_oid:
-            # Check if the target oid was found in loaded commits
-            found = any(
-                self._model.data(self._model.index(r, 0), Qt.UserRole) == self._pending_scroll_oid
+            loaded_oids = {
+                self._model.data(self._model.index(r, 0), Qt.UserRole)
                 for r in range(self._model.rowCount())
+            }
+            target_loaded = self._pending_scroll_oid in loaded_oids
+            base_loaded = (
+                self._pending_merge_base is None
+                or self._pending_merge_base in loaded_oids
             )
-            if found:
+            if target_loaded and base_loaded:
                 self.scroll_to_oid(self._pending_scroll_oid, select=True)
                 self._pending_scroll_oid = None
-            elif self._has_more:
-                # Target not found yet — retry with double the limit
+                self._pending_merge_base = None
+            elif self._has_more and self._reload_limit < MAX_RELOAD_LIMIT:
                 oid = self._pending_scroll_oid
                 tips = self._extra_tips
-                new_limit = self._reload_limit * 2
-                self._pending_scroll_oid = oid
+                new_limit = min(self._reload_limit * 2, MAX_RELOAD_LIMIT)
                 self._loading = False
                 self.reload(extra_tips=tips, limit=new_limit)
+                retrying = True
             else:
-                # No more commits to load — give up
+                # No more commits OR cap reached — accept partial result.
                 self._pending_scroll_oid = None
+                self._pending_merge_base = None
+
+        # Restore the previous selection so the highlighted row stays in sync
+        # with the diff pane. The model reset above wiped the view's current
+        # row; without this restore the user sees a diff pane with content but
+        # no corresponding highlight in the graph. Skipped during retry — the
+        # next reload will run this branch.
+        if not retrying and self._selected_oid is not None:
+            self._restore_selection_no_scroll(self._selected_oid)
 
         # If a search was deferred until all commits were loaded, run it now.
         if self._pending_search:
             needle = self._pending_search
             self._pending_search = None
             self._run_search(needle)
+
+    def _restore_selection_no_scroll(self, oid: str) -> None:
+        """Re-apply the highlighted row to the row matching `oid` after a
+        model reset, without scrolling. Used in _on_reload_done so the
+        graph's highlight survives auto-reloads (RepoChangeDetector,
+        post-operation flows) without losing the user's selection."""
+        for row in range(self._model.rowCount()):
+            if self._model.data(self._model.index(row, 0), Qt.UserRole) == oid:
+                index = self._model.index(row, 0)
+                self._view.selectionModel().setCurrentIndex(
+                    index,
+                    QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows,
+                )
+                return
 
     def _get_visible_rows(self) -> tuple[int, int]:
         """Return (first_visible_row, last_visible_row) indices."""
@@ -850,4 +917,5 @@ class GraphWidget(QWidget):
     def _on_row_changed(self, current: QModelIndex, previous: QModelIndex) -> None:
         oid = self._model.data(self._model.index(current.row(), 0), Qt.UserRole)
         if oid:
+            self._selected_oid = oid
             self.commit_selected.emit(oid)

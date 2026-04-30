@@ -99,6 +99,15 @@ class CommitOps:
         collected.reverse()
         return collected
 
+    def merge_base(self, oid_a: str, oid_b: str) -> str | None:
+        try:
+            result = self._repo.merge_base(
+                pygit2.Oid(hex=oid_a), pygit2.Oid(hex=oid_b)
+            )
+        except (KeyError, ValueError, pygit2.GitError):
+            return None
+        return str(result) if result is not None else None
+
     def get_commit_files(self, oid: str) -> list[FileStatus]:
         commit = self._repo.get(oid)
         if commit.parents:
