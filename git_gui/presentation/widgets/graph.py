@@ -503,22 +503,22 @@ class GraphWidget(QWidget):
                 return
 
     def _restore_selection_no_scroll(self, oid: str) -> None:
-        """Set the current row to the one matching `oid` without scrolling
-        and without re-emitting commit_selected. Used after a model reset to
-        keep the graph's highlight in sync with the diff pane while preserving
-        any scroll position established by the gate."""
+        """Set the current row to the one matching `oid` without scrolling.
+        Used after a model reset to keep the graph's highlight in sync with
+        the diff pane while preserving any scroll position established by
+        the gate. Lets currentRowChanged → commit_selected fire so the view
+        actually repaints the highlight (signal-blocking suppresses the
+        repaint and was the cause of an earlier "no highlight" bug); the
+        diff pane reloads the same commit, which is idempotent."""
         for row in range(self._model.rowCount()):
             if self._model.data(self._model.index(row, 0), Qt.UserRole) == oid:
                 index = self._model.index(row, 0)
-                sm = self._view.selectionModel()
                 prev_auto = self._view.hasAutoScroll()
-                sm.blockSignals(True)
                 self._view.setAutoScroll(False)
                 try:
                     self._view.setCurrentIndex(index)
                 finally:
                     self._view.setAutoScroll(prev_auto)
-                    sm.blockSignals(False)
                 return
 
     def _get_visible_rows(self) -> tuple[int, int]:
