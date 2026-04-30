@@ -42,6 +42,7 @@ def _make_widget(qtbot, commits: list[Commit] | None = None) -> GraphWidget:
     w._pending_merge_base = None
     w._pending_search = None
     w._extra_tips = None
+    w._selected_oid = None
     w._stash_btn = MagicMock()
     w._update_column_widths = lambda: None
 
@@ -371,6 +372,105 @@ def test_reload_with_extra_tip_does_not_steal_selection(qtbot):
     assert w._view.scrollTo.call_count == 1
     # …but selection is not moved.
     assert w._view.setCurrentIndex.call_count == 0
+
+
+def test_on_row_changed_records_selected_oid(qtbot):
+    """_on_row_changed must store the selected oid on _selected_oid so it
+    can be restored after a subsequent model reset."""
+    w = _make_widget(qtbot, commits=[_make_commit("first"), _make_commit("second")])
+
+    current = w._model.index(1, 0)
+    previous = QModelIndex()
+
+    with qtbot.waitSignal(w.commit_selected, timeout=1000):
+        w._on_row_changed(current, previous)
+
+    assert w._selected_oid == "second"
+
+
+def test_on_reload_done_restores_selection_without_scrolling(qtbot):
+    """After a model reset clears the current row, _on_reload_done should
+    re-select the row matching _selected_oid — but without scrolling and
+    without re-emitting commit_selected. This keeps the graph highlight in
+    sync with the diff pane."""
+    from git_gui.presentation.models.graph_model import GraphModel
+    w = _make_widget(qtbot)
+    w._selected_oid = "HEAD"
+    w._model = GraphModel([_make_commit("HEAD"), _make_commit("OTHER")], {})
+
+    w._on_reload_done(
+        commits=[_make_commit("HEAD"), _make_commit("OTHER")],
+        branches=[], tags=[], is_dirty=False, head_oid="HEAD",
+        repo_state_info=None, merge_head=None,
+    )
+
+    # setCurrentIndex was called once with row 0 (HEAD's row).
+    assert w._view.setCurrentIndex.call_count == 1
+    called_index = w._view.setCurrentIndex.call_args.args[0]
+    assert called_index.row() == 0
+
+    # setAutoScroll(False) was used to suppress the auto-scroll that
+    # setCurrentIndex would otherwise trigger.
+    auto_scroll_calls = [
+        c for c in w._view.setAutoScroll.call_args_list
+        if c.args and c.args[0] is False
+    ]
+    assert len(auto_scroll_calls) >= 1, (
+        "setAutoScroll(False) should be called to suppress scroll on restore"
+    )
+
+
+def test_on_reload_done_skips_restore_when_selected_oid_is_none(qtbot):
+    """If no commit was previously selected, no restore happens."""
+    from git_gui.presentation.models.graph_model import GraphModel
+    w = _make_widget(qtbot)
+    w._selected_oid = None
+    w._model = GraphModel([_make_commit("HEAD")], {})
+
+    w._on_reload_done(
+        commits=[_make_commit("HEAD")],
+        branches=[], tags=[], is_dirty=False, head_oid="HEAD",
+        repo_state_info=None, merge_head=None,
+    )
+
+    assert w._view.setCurrentIndex.call_count == 0
+
+
+def test_on_reload_done_skips_restore_during_retry(qtbot):
+    """When the gate triggers a retry, the model is about to be reset again
+    by the next reload — skip the restore to avoid wasted work."""
+    from git_gui.presentation.models.graph_model import GraphModel
+    w = _make_widget(qtbot)
+    w._selected_oid = "HEAD"
+    w._model = GraphModel([_make_commit("HEAD"), _make_commit("DIV")], {})
+    w._pending_scroll_oid = "DIV"
+    w._pending_merge_base = "BASE"  # not in the loaded set
+    w._has_more = True
+    w._reload_limit = 2
+    w._extra_tips = ["DIV"]
+    w.reload = MagicMock()  # spy on the retry call
+
+    w._on_reload_done(
+        commits=[_make_commit("HEAD"), _make_commit("DIV")],
+        branches=[], tags=[], is_dirty=False, head_oid="HEAD",
+        repo_state_info=None, merge_head=None,
+    )
+
+    # Retry was triggered — restore should not have run.
+    w.reload.assert_called_once()
+    assert w._view.setCurrentIndex.call_count == 0
+
+
+def test_set_buses_resets_selected_oid(qtbot):
+    """A repo switch must also clear _selected_oid — the previous repo's
+    selection is meaningless in the new repo."""
+    w = _make_widget(qtbot)
+    w._selected_oid = "HEAD"
+
+    with patch("threading.Thread"):
+        w.set_buses(MagicMock(), MagicMock())
+
+    assert w._selected_oid is None
 
 
 def test_set_buses_resets_reload_limit_to_page_size(qtbot):

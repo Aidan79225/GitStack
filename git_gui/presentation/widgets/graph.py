@@ -205,6 +205,9 @@ class GraphWidget(QWidget):
         self._pending_scroll_oid: str | None = None
         self._pending_merge_base: str | None = None
         self._extra_tips: list[str] | None = None
+        # Tracks the currently-selected commit so the highlight can be
+        # restored after a model reset (which clears the view's current row).
+        self._selected_oid: str | None = None
 
         self._view = _GraphTableView()
         self._view.setSelectionBehavior(QTableView.SelectRows)
@@ -309,6 +312,7 @@ class GraphWidget(QWidget):
         self._extra_tips = None
         self._pending_scroll_oid = None
         self._pending_merge_base = None
+        self._selected_oid = None
         self._reload_limit = PAGE_SIZE
         if queries is None:
             self._model.reload([], {})
@@ -425,6 +429,7 @@ class GraphWidget(QWidget):
         self._model.reload(all_commits, refs, head_branch)
         self._update_column_widths()
 
+        retrying = False
         if self._pending_scroll_oid:
             loaded_oids = {
                 self._model.data(self._model.index(r, 0), Qt.UserRole)
@@ -446,16 +451,44 @@ class GraphWidget(QWidget):
                 new_limit = min(self._reload_limit * 2, MAX_RELOAD_LIMIT)
                 self._loading = False
                 self.reload(extra_tips=tips, limit=new_limit)
+                retrying = True
             else:
                 # No more commits OR cap reached — accept partial result.
                 self._pending_scroll_oid = None
                 self._pending_merge_base = None
+
+        # Restore the previous selection so the highlighted row stays in sync
+        # with the diff pane. The model reset above wiped the view's current
+        # row; without this restore the user sees a diff pane with content but
+        # no corresponding highlight in the graph. Skipped during retry — the
+        # next reload will run this branch.
+        if not retrying and self._selected_oid is not None:
+            self._restore_selection_no_scroll(self._selected_oid)
 
         # If a search was deferred until all commits were loaded, run it now.
         if self._pending_search:
             needle = self._pending_search
             self._pending_search = None
             self._run_search(needle)
+
+    def _restore_selection_no_scroll(self, oid: str) -> None:
+        """Set the current row to the one matching `oid` without scrolling
+        and without re-emitting commit_selected. Used after a model reset to
+        keep the graph's highlight in sync with the diff pane while preserving
+        any scroll position established by the gate."""
+        for row in range(self._model.rowCount()):
+            if self._model.data(self._model.index(row, 0), Qt.UserRole) == oid:
+                index = self._model.index(row, 0)
+                sm = self._view.selectionModel()
+                prev_auto = self._view.hasAutoScroll()
+                sm.blockSignals(True)
+                self._view.setAutoScroll(False)
+                try:
+                    self._view.setCurrentIndex(index)
+                finally:
+                    self._view.setAutoScroll(prev_auto)
+                    sm.blockSignals(False)
+                return
 
     def _get_visible_rows(self) -> tuple[int, int]:
         """Return (first_visible_row, last_visible_row) indices."""
@@ -891,4 +924,5 @@ class GraphWidget(QWidget):
     def _on_row_changed(self, current: QModelIndex, previous: QModelIndex) -> None:
         oid = self._model.data(self._model.index(current.row(), 0), Qt.UserRole)
         if oid:
+            self._selected_oid = oid
             self.commit_selected.emit(oid)
