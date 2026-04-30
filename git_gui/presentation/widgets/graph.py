@@ -301,28 +301,35 @@ class GraphWidget(QWidget):
 
     def set_buses(self, queries: QueryBus | None, commands: CommandBus | None) -> None:
         self._queries = queries
-        # Reset per-click state — the previous repo's pending scroll target
-        # and extra tips are meaningless in the new repo.
+        # Reset per-click state — the previous repo's selection is meaningless
+        # in the new repo. Reset _reload_limit too so the new repo starts at
+        # PAGE_SIZE; otherwise a previously-doubled limit (e.g. 2000 for a
+        # deep divergence) carries into the new repo and over-loads on first
+        # render.
         self._extra_tips = None
         self._pending_scroll_oid = None
         self._pending_merge_base = None
+        self._reload_limit = PAGE_SIZE
         if queries is None:
             self._model.reload([], {})
         else:
             self.reload()
 
-    def reload(self, extra_tips: list[str] | None = None, limit: int = PAGE_SIZE) -> None:
+    def reload(self, extra_tips: list[str] | None = None, limit: int | None = None) -> None:
         if self._loading:
             return
         self._loading = True
-        # Sticky semantic: a bare reload() (extra_tips=None) preserves the
-        # user's last-clicked diverged branch. Auto-reloads from the change
-        # detector and post-operation flows pass no tips and would otherwise
-        # wipe the user's selection. set_buses() explicitly clears state on
-        # repo switch.
+        # Sticky semantic: a bare reload() preserves both the user's last-
+        # clicked diverged branch (extra_tips) and the load size that was
+        # needed to draw its lane (limit). Auto-reloads from the change
+        # detector and post-operation flows pass neither, and would otherwise
+        # regress to PAGE_SIZE — losing the merge base from the loaded set
+        # and reverting the diverged lane to a floating circle.
+        # set_buses() explicitly clears state on repo switch.
         effective_tips = extra_tips if extra_tips is not None else self._extra_tips
+        effective_limit = limit if limit is not None else self._reload_limit
         self._extra_tips = effective_tips
-        self._reload_limit = limit
+        self._reload_limit = effective_limit
         queries = self._queries
 
         signals = _LoadSignals()
@@ -330,7 +337,7 @@ class GraphWidget(QWidget):
         self._load_signals = signals  # prevent GC
 
         def _worker():
-            commits = queries.get_commit_graph.execute(limit=limit, extra_tips=effective_tips)
+            commits = queries.get_commit_graph.execute(limit=effective_limit, extra_tips=effective_tips)
             branches = queries.get_branches.execute()
             tags = queries.get_tags.execute()
             dirty = queries.is_dirty.execute()

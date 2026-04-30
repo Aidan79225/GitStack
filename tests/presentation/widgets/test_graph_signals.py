@@ -41,6 +41,7 @@ def _make_widget(qtbot, commits: list[Commit] | None = None) -> GraphWidget:
     w._pending_scroll_oid = None
     w._pending_merge_base = None
     w._pending_search = None
+    w._extra_tips = None
     w._stash_btn = MagicMock()
     w._update_column_widths = lambda: None
 
@@ -318,6 +319,50 @@ def test_set_buses_resets_extra_tips_and_pending_state(qtbot):
     assert w._extra_tips is None
     assert w._pending_scroll_oid is None
     assert w._pending_merge_base is None
+
+
+def test_reload_preserves_reload_limit_when_called_without_args(qtbot):
+    """A bare reload() must preserve self._reload_limit. After the doubling
+    retry has grown the limit (e.g. to 200) so the merge base is loaded, an
+    auto-reload from MainWindow._reload must NOT regress to PAGE_SIZE — that
+    would drop the merge base from the loaded set and revert the diverged
+    lane to a floating circle."""
+    from git_gui.presentation.widgets.graph import PAGE_SIZE
+    w = _make_widget(qtbot)
+    w._extra_tips = ["DIV"]
+    w._reload_limit = 200
+
+    with patch("threading.Thread"):
+        w.reload()
+
+    assert w._reload_limit == 200, (
+        "bare reload() must not regress _reload_limit to PAGE_SIZE"
+    )
+
+
+def test_reload_with_explicit_limit_replaces_current(qtbot):
+    """An explicit limit argument replaces the current value."""
+    w = _make_widget(qtbot)
+    w._reload_limit = 200
+
+    with patch("threading.Thread"):
+        w.reload(limit=999_999)
+
+    assert w._reload_limit == 999_999
+
+
+def test_set_buses_resets_reload_limit_to_page_size(qtbot):
+    """set_buses must reset _reload_limit to PAGE_SIZE so the new repo
+    starts fresh — otherwise a previously-doubled limit (up to 2000) would
+    over-load on the new repo's first render."""
+    from git_gui.presentation.widgets.graph import PAGE_SIZE
+    w = _make_widget(qtbot)
+    w._reload_limit = 1600
+
+    with patch("threading.Thread"):
+        w.set_buses(MagicMock(), MagicMock())
+
+    assert w._reload_limit == PAGE_SIZE
 
 
 def test_on_reload_done_skips_base_check_when_pending_merge_base_is_none(qtbot):
