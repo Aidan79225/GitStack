@@ -1,7 +1,7 @@
 # git_gui/presentation/widgets/author_avatar.py
 from __future__ import annotations
-from PySide6.QtCore import QRect, Qt
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPixmap
+from PySide6.QtCore import QRect, QRectF, Qt
+from PySide6.QtGui import QBrush, QColor, QPainter, QPixmap
 
 _PALETTE = [
     "#e57373", "#f06292", "#ba68c8", "#9575cd",
@@ -28,24 +28,48 @@ def _color_for_author(author: str) -> QColor:
     return QColor(_PALETTE[h % len(_PALETTE)])
 
 
-def paint_avatar(painter: QPainter, rect: QRect, author: str) -> None:
-    """Paint a circular initials avatar inside *rect* (should be square)."""
+def paint_avatar(
+    painter: QPainter,
+    rect: QRect,
+    author: str,
+    pixmap: QPixmap | None = None,
+) -> None:
+    """Paint a circular avatar inside *rect* (should be square).
+
+    If *pixmap* is provided and non-null, render it as the circle's fill
+    (scaled to size). Otherwise render deterministic-color initials.
+    """
     painter.save()
     painter.setRenderHint(QPainter.Antialiasing)
+    painter.setRenderHint(QPainter.SmoothPixmapTransform)
 
-    path = QPainterPath()
-    center = rect.center()
-    radius = min(rect.width(), rect.height()) / 2.0
-    path.addEllipse(center, radius, radius)
+    side = min(rect.width(), rect.height())
+    cx = rect.x() + rect.width() / 2.0
+    cy = rect.y() + rect.height() / 2.0
+    # Inset by 0.5px so antialiased edges aren't clipped by the rect.
+    circle = QRectF(cx - side / 2.0 + 0.5, cy - side / 2.0 + 0.5,
+                    side - 1.0, side - 1.0)
 
-    painter.setClipPath(path)
-    painter.fillRect(rect, _color_for_author(author))
-
-    painter.setPen(QColor("#ffffff"))
-    font = painter.font()
-    font.setPixelSize(max(int(radius * 0.9), 8))
-    font.setBold(True)
-    painter.setFont(font)
-    painter.drawText(rect, Qt.AlignCenter, _initials(author))
+    painter.setPen(Qt.NoPen)
+    if pixmap is not None and not pixmap.isNull():
+        scaled = pixmap.scaled(
+            int(circle.width()), int(circle.height()),
+            Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation,
+        )
+        brush = QBrush(scaled)
+        # Position the pattern so it lines up with our ellipse, not (0,0).
+        from PySide6.QtGui import QTransform
+        brush.setTransform(QTransform().translate(circle.x(), circle.y()))
+        painter.setBrush(brush)
+        painter.drawEllipse(circle)
+    else:
+        painter.setBrush(_color_for_author(author))
+        painter.drawEllipse(circle)
+        painter.setPen(QColor("#ffffff"))
+        font = painter.font()
+        font.setPixelSize(max(int(side * 0.45), 8))
+        font.setBold(True)
+        painter.setFont(font)
+        painter.drawText(rect, Qt.AlignCenter, _initials(author))
 
     painter.restore()

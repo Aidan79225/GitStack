@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QWidget
 from git_gui.domain.entities import Commit
 from git_gui.presentation.theme import get_theme_manager, connect_widget
 from git_gui.presentation.widgets.author_avatar import paint_avatar
+from git_gui.presentation.widgets.avatar_loader import get_avatar_loader
 from git_gui.presentation.widgets.ref_badge_delegate import (
     _badge_color, _badge_display_name, BADGE_RADIUS, BADGE_H_PAD, BADGE_V_PAD, BADGE_GAP,
 )
@@ -25,11 +26,18 @@ class CommitDetailWidget(QWidget):
         super().__init__(parent)
         self._commit: Commit | None = None
         self._refs: list[str] = []
+        self._avatar_hash: str | None = None
         connect_widget(self)
+        self._avatar_loader = get_avatar_loader()
+        self._avatar_loader.avatar_ready.connect(self._on_avatar_ready)
+        self._avatar_loader.enabled_changed.connect(lambda _v: self.update())
 
     def set_commit(self, commit: Commit, refs: list[str]) -> None:
         self._commit = commit
         self._refs = refs
+        self._avatar_hash = self._avatar_loader.hash_for_author(commit.author)
+        # Prime the cache; first call may kick off async fetch.
+        self._avatar_loader.get_pixmap(commit.author)
         fm = self.fontMetrics()
         self.setFixedHeight(fm.height() * 3 + PAD * 4)
         self.update()
@@ -37,7 +45,12 @@ class CommitDetailWidget(QWidget):
     def clear(self) -> None:
         self._commit = None
         self._refs = []
+        self._avatar_hash = None
         self.update()
+
+    def _on_avatar_ready(self, email_hash: str) -> None:
+        if email_hash == self._avatar_hash:
+            self.update()
 
     def paintEvent(self, event) -> None:
         if self._commit is None:
@@ -55,7 +68,8 @@ class CommitDetailWidget(QWidget):
         # ── Avatar (left, vertically centered) ───────────────────────────────
         avatar_y = (self.height() - AVATAR_SIZE) // 2
         avatar_rect = QRect(PAD, avatar_y, AVATAR_SIZE, AVATAR_SIZE)
-        paint_avatar(painter, avatar_rect, c.author)
+        pixmap = self._avatar_loader.get_pixmap(c.author)
+        paint_avatar(painter, avatar_rect, c.author, pixmap)
         text_left = PAD + AVATAR_SIZE + AVATAR_GAP
 
         # ── Line 1: Author + datetime ────────────────────────────────────────
