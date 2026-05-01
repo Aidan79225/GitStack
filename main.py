@@ -1,3 +1,4 @@
+import logging
 import sys
 import pygit2
 from pathlib import Path
@@ -68,6 +69,7 @@ _SUPPRESSED_FRAGMENTS = (
 def _qt_message_filter(mode, context, message):
     """Filter out known-noisy Qt platform warnings (Windows QPA bugs)."""
     if any(fragment in message for fragment in _SUPPRESSED_FRAGMENTS):
+        logging.debug("Suppressed Qt warning: %s", message)
         return
     sys.stderr.write(f"Qt {mode.name}: {message}\n")
 

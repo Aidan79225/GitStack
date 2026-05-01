@@ -1,25 +1,31 @@
+import logging
+
 from PySide6.QtCore import QtMsgType
 
 from main import _qt_message_filter, _SUPPRESSED_FRAGMENTS
 
 
 class TestQtMessageFilter:
-    def test_suppresses_monitor_interface_warning(self, capsys):
-        _qt_message_filter(
-            QtMsgType.QtWarningMsg,
-            None,
-            'Unable to open monitor interface to \\\\.\\DISPLAY1: "Unknown error 0xe0000225."',
-        )
+    def test_suppresses_monitor_interface_warning(self, capsys, caplog):
+        with caplog.at_level(logging.DEBUG):
+            _qt_message_filter(
+                QtMsgType.QtWarningMsg,
+                None,
+                'Unable to open monitor interface to \\\\.\\DISPLAY1: "Unknown error 0xe0000225."',
+            )
         assert capsys.readouterr().err == ""
+        assert "Suppressed Qt warning" in caplog.text
 
-    def test_suppresses_device_pixel_ratio_warning(self, capsys):
-        _qt_message_filter(
-            QtMsgType.QtWarningMsg,
-            None,
-            "The cached device pixel ratio value was stale on window expose. "
-            "Please file a QTBUG which explains how to reproduce.",
-        )
+    def test_suppresses_device_pixel_ratio_warning(self, capsys, caplog):
+        with caplog.at_level(logging.DEBUG):
+            _qt_message_filter(
+                QtMsgType.QtWarningMsg,
+                None,
+                "The cached device pixel ratio value was stale on window expose. "
+                "Please file a QTBUG which explains how to reproduce.",
+            )
         assert capsys.readouterr().err == ""
+        assert "Suppressed Qt warning" in caplog.text
 
     def test_passes_through_unrelated_warning(self, capsys):
         _qt_message_filter(
