@@ -1,6 +1,7 @@
 import sys
 import pygit2
 from pathlib import Path
+from PySide6.QtCore import QtMsgType, qInstallMessageHandler
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 from git_gui.infrastructure.pygit2 import Pygit2Repository
 from git_gui.infrastructure.repo_store import JsonRepoStore
@@ -58,8 +59,26 @@ def _open_session(path: str) -> tuple[QueryBus, CommandBus]:
     return QueryBus.from_reader(repo), CommandBus.from_writer(repo)
 
 
+_SUPPRESSED_PATTERNS = (
+    "Unable to open monitor interface",
+    "cached device pixel ratio value was stale",
+)
+
+_default_handler = None
+
+
+def _qt_message_filter(mode, context, message):
+    for pattern in _SUPPRESSED_PATTERNS:
+        if pattern in message:
+            return
+    if _default_handler is not None:
+        _default_handler(mode, context, message)
+
+
 def main() -> None:
+    global _default_handler
     setup_logging()
+    _default_handler = qInstallMessageHandler(_qt_message_filter)
     app = QApplication(sys.argv)
     app.setApplicationName("GitCrisp")
 
