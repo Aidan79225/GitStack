@@ -5,6 +5,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QCheckBox,
     QDialog,
     QDialogButtonBox,
     QGroupBox,
@@ -16,6 +17,8 @@ from PySide6.QtWidgets import (
 )
 
 from git_gui.presentation.theme import get_theme_manager
+from git_gui.presentation.theme import settings as _settings
+from git_gui.presentation.widgets.avatar_loader import get_avatar_loader
 
 
 _MODES: list[tuple[str, str]] = [
@@ -101,6 +104,18 @@ class ThemeDialog(QDialog):
 
         self._mgr = get_theme_manager()
         layout = QVBoxLayout(self)
+
+        # --- Avatars ---
+        avatar_group = QGroupBox("Avatars")
+        avatar_layout = QVBoxLayout(avatar_group)
+        self._gravatar_checkbox = QCheckBox(
+            "Fetch avatars from Gravatar (sends a hash of the author email to gravatar.com)"
+        )
+        self._gravatar_checkbox.setChecked(
+            bool(_settings.load_settings().get("avatar_gravatar_enabled", True))
+        )
+        avatar_layout.addWidget(self._gravatar_checkbox)
+        layout.addWidget(avatar_group)
 
         # --- Mode radios ---
         mode_group = QGroupBox("Mode")
@@ -286,7 +301,17 @@ class ThemeDialog(QDialog):
         if mode == "custom":
             self._write_custom_theme()
         self._mgr.set_mode(mode, force=(mode == "custom"))
+        self._save_avatar_setting()
         self.accept()
+
+    def _save_avatar_setting(self) -> None:
+        enabled = self._gravatar_checkbox.isChecked()
+        data = _settings.load_settings()
+        if data.get("avatar_gravatar_enabled") == enabled:
+            return
+        data["avatar_gravatar_enabled"] = enabled
+        _settings.save_settings(data)
+        get_avatar_loader().set_enabled(enabled)
 
     def _on_cancel(self) -> None:
         self.reject()

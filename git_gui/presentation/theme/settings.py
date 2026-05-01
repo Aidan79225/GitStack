@@ -5,7 +5,7 @@ from pathlib import Path
 from PySide6.QtCore import QStandardPaths
 
 _log = logging.getLogger(__name__)
-DEFAULTS = {"theme_mode": "system"}
+DEFAULTS = {"theme_mode": "system", "avatar_gravatar_enabled": True}
 
 
 def settings_path() -> Path:
