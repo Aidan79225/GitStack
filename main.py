@@ -1,6 +1,8 @@
+import logging
 import sys
 import pygit2
 from pathlib import Path
+from PySide6.QtCore import qInstallMessageHandler
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 from git_gui.infrastructure.pygit2 import Pygit2Repository
 from git_gui.infrastructure.repo_store import JsonRepoStore
@@ -58,8 +60,23 @@ def _open_session(path: str) -> tuple[QueryBus, CommandBus]:
     return QueryBus.from_reader(repo), CommandBus.from_writer(repo)
 
 
+_SUPPRESSED_FRAGMENTS = (
+    "Unable to open monitor interface",
+    "cached device pixel ratio value was stale",
+)
+
+
+def _qt_message_filter(mode, context, message):
+    """Filter out known-noisy Qt platform warnings (Windows QPA bugs)."""
+    if any(fragment in message for fragment in _SUPPRESSED_FRAGMENTS):
+        logging.debug("Suppressed Qt warning: %s", message)
+        return
+    sys.stderr.write(f"Qt {mode.name}: {message}\n")
+
+
 def main() -> None:
     setup_logging()
+    qInstallMessageHandler(_qt_message_filter)
     app = QApplication(sys.argv)
     app.setApplicationName("GitCrisp")
 
