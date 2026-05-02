@@ -12,6 +12,15 @@ from git_gui.presentation.theme import get_theme_manager, connect_widget
 from git_gui.resources import get_resource_path
 
 
+def _tag_sort_key(name: str) -> tuple[bool, list[int] | str]:
+    raw = name.lstrip("vV")
+    parts = raw.split(".")
+    try:
+        return (False, [int(p) for p in parts])
+    except ValueError:
+        return (True, name)
+
+
 def _head_bg() -> QColor:
     return get_theme_manager().current.colors.as_qcolor("primary")
 
@@ -220,7 +229,7 @@ class SidebarWidget(QWidget):
         ])
 
         # Tags — sorted by name descending. Cloud icon for remote tags.
-        tags_sorted = sorted(tags, key=lambda t: t.name, reverse=True)
+        tags_sorted = sorted(tags, key=lambda t: _tag_sort_key(t.name), reverse=True)
         tag_header = QStandardItem("TAGS")
         tag_header.setEditable(False)
         tag_header.setData("header", Qt.UserRole + 1)
