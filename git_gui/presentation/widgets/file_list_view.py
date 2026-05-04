@@ -15,9 +15,73 @@ class FileListView(QListView):
        the row selection (so the blue highlight on another row is preserved).
     2. Clicking an already-selected row deselects it and emits ``deselected``,
        without delegating to ``super()`` so Qt cannot re-select.
+
+    Also caps the reported sizeHint at MAX_VISIBLE_ROWS rows tall so the
+    unified commit-detail scroll doesn't get a runaway-tall file list on big
+    commits. Past the cap, the view's internal vertical scrollbar takes over.
     """
 
     deselected = Signal()
+
+    MAX_VISIBLE_ROWS = 5
+    _FALLBACK_ROW_HEIGHT = 28  # Matches FileDeltaDelegate.sizeHint (BADGE_SIZE + 8).
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._connected_model = None
+
+    # ── Sizing ──────────────────────────────────────────────────────────────
+
+    def sizeHint(self) -> QSize:
+        base = super().sizeHint()
+        m = self.model()
+        if m is None:
+            return QSize(base.width(), 2 * self.frameWidth())
+        rows = m.rowCount()
+        visible = min(rows, self.MAX_VISIBLE_ROWS)
+        if rows == 0:
+            return QSize(base.width(), 2 * self.frameWidth())
+        row_h = self.sizeHintForRow(0)
+        if row_h <= 0:
+            row_h = self._FALLBACK_ROW_HEIGHT
+        return QSize(base.width(), visible * row_h + 2 * self.frameWidth())
+
+    def minimumSizeHint(self) -> QSize:
+        base = super().minimumSizeHint()
+        m = self.model()
+        if m is None or m.rowCount() == 0:
+            return QSize(base.width(), 2 * self.frameWidth())
+        row_h = self.sizeHintForRow(0)
+        if row_h <= 0:
+            row_h = self._FALLBACK_ROW_HEIGHT
+        # Allow the layout to shrink the list down to one row's worth in
+        # tight situations, without it collapsing entirely.
+        return QSize(base.width(), row_h + 2 * self.frameWidth())
+
+    def setModel(self, model) -> None:
+        # Disconnect the previous model's row-count signals, if any.
+        if self._connected_model is not None:
+            try:
+                self._connected_model.modelReset.disconnect(self.updateGeometry)
+                self._connected_model.rowsInserted.disconnect(self.updateGeometry)
+                self._connected_model.rowsRemoved.disconnect(self.updateGeometry)
+            except (TypeError, RuntimeError):
+                # Signal wasn't connected (e.g., model was deleted) — ignore.
+                pass
+
+        super().setModel(model)
+        self._connected_model = model
+
+        if model is not None:
+            # Any row-count change should re-trigger the parent layout to
+            # re-read sizeHint(). updateGeometry() takes no args; PySide6
+            # discards the extra args from rowsInserted/rowsRemoved.
+            model.modelReset.connect(self.updateGeometry)
+            model.rowsInserted.connect(self.updateGeometry)
+            model.rowsRemoved.connect(self.updateGeometry)
+
+    # ── Existing custom click behaviour (unchanged below) ──────────────────
 
     def _checkbox_rect(self, index):
         """Return the QRect of the check indicator for *index*, or None."""
