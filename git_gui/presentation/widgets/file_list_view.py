@@ -1,11 +1,25 @@
 # git_gui/presentation/widgets/file_list_view.py
 """Shared QListView subclass with click-to-deselect and checkbox-without-select."""
 from __future__ import annotations
-from PySide6.QtCore import QModelIndex, QRect, QSize, Qt, Signal
+from PySide6.QtCore import QAbstractItemModel, QModelIndex, QRect, QSize, Qt, Signal
 from PySide6.QtGui import QBrush, QPainter
 from PySide6.QtWidgets import QListView, QStyle, QStyledItemDelegate, QStyleOptionViewItem
 
 from git_gui.presentation.theme import get_theme_manager
+
+
+# Shared delta-badge constants used by both FileListView (for its row-height
+# fallback) and FileDeltaDelegate (for paint geometry).
+DELTA_LABEL = {
+    "modified": "M",
+    "added":    "A",
+    "deleted":  "D",
+    "renamed":  "R",
+    "unknown":  "?",
+}
+
+BADGE_SIZE = 20
+BADGE_GAP = 6
 
 
 class FileListView(QListView):
@@ -24,12 +38,11 @@ class FileListView(QListView):
     deselected = Signal()
 
     MAX_VISIBLE_ROWS = 5
-    _FALLBACK_ROW_HEIGHT = 28  # Matches FileDeltaDelegate.sizeHint (BADGE_SIZE + 8).
+    _FALLBACK_ROW_HEIGHT = BADGE_SIZE + 8  # Matches FileDeltaDelegate.sizeHint.
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self._connected_model = None
 
     # ── Sizing ──────────────────────────────────────────────────────────────
 
@@ -59,19 +72,20 @@ class FileListView(QListView):
         # tight situations, without it collapsing entirely.
         return QSize(base.width(), row_h + 2 * self.frameWidth())
 
-    def setModel(self, model) -> None:
-        # Disconnect the previous model's row-count signals, if any.
-        if self._connected_model is not None:
+    def setModel(self, model: QAbstractItemModel | None) -> None:
+        prev = self.model()
+        if prev is not None:
             try:
-                self._connected_model.modelReset.disconnect(self.updateGeometry)
-                self._connected_model.rowsInserted.disconnect(self.updateGeometry)
-                self._connected_model.rowsRemoved.disconnect(self.updateGeometry)
+                # Disconnect updateGeometry from every signal on the previous
+                # model in one call. Cleaner than three individual disconnects
+                # and resilient to future signal additions.
+                prev.disconnect(self.updateGeometry)
             except (TypeError, RuntimeError):
-                # Signal wasn't connected (e.g., model was deleted) — ignore.
+                # Slot wasn't connected (TypeError) or the model was already
+                # destroyed (RuntimeError) — both are fine, nothing to undo.
                 pass
 
         super().setModel(model)
-        self._connected_model = model
 
         if model is not None:
             # Any row-count change should re-trigger the parent layout to
@@ -124,18 +138,6 @@ class FileListView(QListView):
 # ── Delegate for FileListView's default look ─────────────────────────────
 # Lifted here from diff.py so a future FileNavigatorWidget can import it
 # alongside FileListView.
-
-DELTA_LABEL = {
-    "modified": "M",
-    "added":    "A",
-    "deleted":  "D",
-    "renamed":  "R",
-    "unknown":  "?",
-}
-
-BADGE_SIZE = 20
-BADGE_GAP = 6
-
 
 class FileDeltaDelegate(QStyledItemDelegate):
     """Paints a colored delta badge plus the file path for a FileListView row."""
