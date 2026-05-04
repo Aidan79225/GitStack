@@ -17,9 +17,9 @@ from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QListView,
-    QPushButton,
     QScrollArea,
     QStackedLayout,
+    QToolButton,
     QWidget,
 )
 
@@ -93,8 +93,9 @@ class FileNavigatorWidget(QWidget):
         self._pill_root = _HorizontalWheelScrollArea()
         self._pill_root.setWidgetResizable(True)
         self._pill_root.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self._pill_root.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._pill_root.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._pill_root.setFrameShape(QScrollArea.NoFrame)
+        self._pill_root.setViewportMargins(0, 0, 0, 0)
 
         self._pill_container = QWidget()
         self._pill_layout = QHBoxLayout(self._pill_container)
@@ -105,14 +106,16 @@ class FileNavigatorWidget(QWidget):
         self._stack.addWidget(self._pill_root)
 
         # "All" synthetic pill (always present, at index 0).
-        self._all_pill = QPushButton("All")
+        self._all_pill = QToolButton()
+        self._all_pill.setText("All")
+        self._all_pill.setToolButtonStyle(Qt.ToolButtonTextOnly)
         self._all_pill.setCheckable(True)
         self._all_pill.setFixedHeight(20)
         self._all_pill.setChecked(True)
         self._all_pill.clicked.connect(self._on_all_pill_clicked)
         self._pill_layout.insertWidget(0, self._all_pill)
 
-        self._pill_buttons: dict[str, QPushButton] = {}
+        self._pill_buttons: dict[str, QToolButton] = {}
         self._build_pills()
         model.modelReset.connect(self._build_pills)
 
@@ -175,9 +178,11 @@ class FileNavigatorWidget(QWidget):
             fs = self._model.data(idx, Qt.UserRole)
             if fs is None:
                 continue
-            btn = QPushButton(fs.path)
+            btn = QToolButton()
+            btn.setText(fs.path)
             btn.setIcon(_delta_dot_icon(fs.delta))
             btn.setIconSize(QSize(10, 10))
+            btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
             btn.setCheckable(True)
             btn.setFixedHeight(20)
             btn.setChecked(False)
@@ -267,32 +272,32 @@ class FileNavigatorWidget(QWidget):
         # native style bleeds through and produces sharp-cornered gray
         # rectangles instead of rounded MD3 pills.
         pill_qss = (
-            f"QPushButton {{"
+            f"QToolButton {{"
             f"  background: {bg};"
             f"  color: {on_surface};"
             f"  border: 1px solid {outline};"
-            f"  border-radius: 12px;"
+            f"  border-radius: 10px;"
             f"  padding: 1px 10px;"
             f"  outline: none;"
             f"}}"
-            f"QPushButton:hover {{"
+            f"QToolButton:hover {{"
             f"  border-color: {primary};"
             f"}}"
-            f"QPushButton:pressed {{"
+            f"QToolButton:pressed {{"
             f"  background: {primary};"
             f"  color: {on_primary};"
             f"  border-color: {primary};"
             f"}}"
-            f"QPushButton:checked {{"
+            f"QToolButton:checked {{"
             f"  background: {primary};"
             f"  color: {on_primary};"
             f"  border-color: {primary};"
             f"}}"
-            f"QPushButton:checked:hover {{"
+            f"QToolButton:checked:hover {{"
             f"  background: {primary};"
             f"  border-color: {primary};"
             f"}}"
-            f"QPushButton:focus {{"
+            f"QToolButton:focus {{"
             f"  outline: none;"
             f"}}"
         )
