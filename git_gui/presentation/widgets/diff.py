@@ -54,6 +54,8 @@ class _StickyPinController:
             self._pin()
 
     def _on_scroll(self, value: int) -> None:
+        if self._transitioning:
+            return
         if not self._pinned and value >= self._threshold:
             self._pin()
         elif self._pinned and value < self._threshold - self.HYSTERESIS_PX:
