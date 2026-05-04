@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class _StickyPinController:
     """Owns the pin/unpin state machine and threshold computation for DiffWidget."""
 
-    HYSTERESIS_PX = 4
+    HYSTERESIS_PX = 32
 
     def __init__(self, owner: "DiffWidget") -> None:
         self._owner = owner

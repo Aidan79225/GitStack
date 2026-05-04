@@ -28,6 +28,25 @@ from git_gui.presentation.theme import connect_widget, get_theme_manager
 from git_gui.presentation.widgets.file_list_view import FileDeltaDelegate, FileListView
 
 
+class _HorizontalWheelScrollArea(QScrollArea):
+    """QScrollArea that scrolls horizontally on wheel events instead of vertically.
+
+    Used for the pill strip — the strip itself never scrolls vertically (it's
+    one row of pills), but the user expects the wheel to move it left/right
+    when there are more pills than fit. Without this, wheel events are
+    swallowed (because vertical scroll is disabled) and the user can't
+    reach offscreen pills without dragging the horizontal scrollbar.
+    """
+
+    def wheelEvent(self, event) -> None:
+        delta = event.angleDelta().y()
+        if delta == 0:
+            delta = event.angleDelta().x()
+        sb = self.horizontalScrollBar()
+        sb.setValue(sb.value() - delta)
+        event.accept()
+
+
 class NavMode(Enum):
     LIST = 0
     PILL = 1
@@ -71,7 +90,7 @@ class FileNavigatorWidget(QWidget):
         self._stack.addWidget(self._list_view)
 
         # ── Pill mode ────────────────────────────────────────────────────────
-        self._pill_root = QScrollArea()
+        self._pill_root = _HorizontalWheelScrollArea()
         self._pill_root.setWidgetResizable(True)
         self._pill_root.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._pill_root.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
@@ -79,7 +98,7 @@ class FileNavigatorWidget(QWidget):
 
         self._pill_container = QWidget()
         self._pill_layout = QHBoxLayout(self._pill_container)
-        self._pill_layout.setContentsMargins(4, 4, 4, 4)
+        self._pill_layout.setContentsMargins(4, 1, 4, 1)
         self._pill_layout.setSpacing(4)
         self._pill_layout.addStretch(1)  # right-side filler
         self._pill_root.setWidget(self._pill_container)
@@ -232,8 +251,8 @@ class FileNavigatorWidget(QWidget):
             f"  color: {on_surface};"
             f"  border: 1px solid {outline};"
             f"  border-radius: 12px;"
-            f"  padding: 4px 12px;"
-            f"  min-height: 16px;"
+            f"  padding: 3px 12px;"
+            f"  min-height: 14px;"
             f"  outline: none;"
             f"}}"
             f"QPushButton:hover {{"

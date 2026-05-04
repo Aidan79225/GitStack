@@ -188,12 +188,14 @@ def test_hysteresis_prevents_unpin_just_below_threshold(diff_widget, qtbot):
     widget._sticky_controller._on_scroll(150)
     assert widget._sticky_controller._pinned
 
-    # Within hysteresis (98 > threshold - 4 = 96): stay pinned
-    widget._sticky_controller._on_scroll(98)
+    h = widget._sticky_controller.HYSTERESIS_PX
+
+    # Just inside the hysteresis band on the unpin side: stay pinned.
+    widget._sticky_controller._on_scroll(100 - h + 1)
     assert widget._sticky_controller._pinned is True
 
-    # Outside hysteresis (95 < 96): unpin
-    widget._sticky_controller._on_scroll(95)
+    # Just outside the hysteresis band: unpin.
+    widget._sticky_controller._on_scroll(100 - h - 1)
     assert widget._sticky_controller._pinned is False
 
 
