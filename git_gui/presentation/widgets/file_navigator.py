@@ -119,6 +119,18 @@ class FileNavigatorWidget(QWidget):
         self._build_pills()
         model.modelReset.connect(self._build_pills)
 
+        # Propagate row-count changes UP to the parent layout. _list_view
+        # already calls updateGeometry on its own model-signal hooks, but
+        # that only invalidates _list_view → FileNavigatorWidget's layout.
+        # Because FileNavigatorWidget.sizeHint is overridden to delegate to
+        # the active stacked child (commit c01c765), the parent (_flow_slot)
+        # doesn't otherwise receive a LayoutRequest and keeps the stale
+        # empty-model size hint (~2 px) — visible at runtime as only half a
+        # row of files showing when first opening a commit.
+        model.modelReset.connect(self.updateGeometry)
+        model.rowsInserted.connect(self.updateGeometry)
+        model.rowsRemoved.connect(self.updateGeometry)
+
         # Sync pill check state from selection model changes (so list-view
         # clicks update pill highlight too).
         self._list_view.selectionModel().currentChanged.connect(self._sync_pills_to_selection)

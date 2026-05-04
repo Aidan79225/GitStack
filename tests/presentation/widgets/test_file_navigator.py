@@ -182,3 +182,25 @@ def test_set_active_file_unknown_path_falls_back_to_all(navigator):
 
     assert widget._all_pill.isChecked()
     assert not any(p.isChecked() for p in widget._pill_buttons.values())
+
+
+def test_model_reset_calls_navigator_updateGeometry(navigator, qtbot):
+    """When the underlying model fires modelReset, the navigator itself
+    must call updateGeometry — not just its inner list view — so the
+    parent layout (e.g., _flow_slot in DiffWidget) re-reads the
+    navigator's sizeHint and picks up the new row-count height.
+
+    Regression test: without this, a commit with 5 files showed only
+    half a row visible at scroll=0.
+    """
+    from git_gui.domain.entities import FileStatus
+    widget, model = navigator
+
+    calls = []
+    original = widget.updateGeometry
+    widget.updateGeometry = lambda: calls.append(True) or original()
+
+    model.reload([FileStatus(path="x.py", status="staged", delta="modified")])
+    qtbot.wait(1)
+
+    assert calls, "model.reload should trigger navigator.updateGeometry"
