@@ -138,6 +138,25 @@ class FileNavigatorWidget(QWidget):
 
     def set_mode(self, mode: NavMode) -> None:
         self._stack.setCurrentIndex(mode.value)
+        # QStackedLayout's sizeHint is max(children); we override sizeHint
+        # to return only the active child's, but we have to nudge the
+        # parent layout to re-read it after the index changes.
+        self.updateGeometry()
+
+    def sizeHint(self) -> QSize:
+        # Default QStackedLayout.sizeHint returns max of all children, which
+        # bleeds the LIST mode's tall row count into the PILL mode's
+        # one-row footprint. Return the active child's hint instead.
+        current = self._stack.currentWidget()
+        if current is None:
+            return super().sizeHint()
+        return current.sizeHint()
+
+    def minimumSizeHint(self) -> QSize:
+        current = self._stack.currentWidget()
+        if current is None:
+            return super().minimumSizeHint()
+        return current.minimumSizeHint()
 
     # ── Pill management ─────────────────────────────────────────────────────
 
