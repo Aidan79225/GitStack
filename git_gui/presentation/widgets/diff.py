@@ -104,10 +104,10 @@ class _StickyPinController:
             self._owner._pin_slot.setVisible(True)
             nav.set_mode(NavMode.PILL)
             nav.show()
+            self._pinned = True
         finally:
             self._owner.setUpdatesEnabled(True)
             self._transitioning = False
-        self._pinned = True
 
     def _unpin(self) -> None:
         nav = self._owner._file_navigator
@@ -120,10 +120,10 @@ class _StickyPinController:
             self._owner._pin_slot.setVisible(False)
             nav.set_mode(NavMode.LIST)
             nav.show()
+            self._pinned = False
         finally:
             self._owner.setUpdatesEnabled(True)
             self._transitioning = False
-        self._pinned = False
 
 
 class DiffWidget(QWidget):

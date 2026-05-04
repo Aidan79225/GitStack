@@ -149,6 +149,10 @@ class FileNavigatorWidget(QWidget):
         # Reset highlight to "All".
         self._all_pill.setChecked(not self.selection_model.hasSelection())
 
+        # New pill widgets need their QSS applied; the construction-time
+        # _restyle_pills call only saw _all_pill.
+        self._restyle_pills()
+
     def _on_pill_clicked(self, row: int) -> None:
         """Drive the shared selection model. Visual pill state will follow via
         _sync_pills_to_selection. The explicit resync at the end handles the case
