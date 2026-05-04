@@ -1,18 +1,16 @@
 # git_gui/presentation/widgets/diff.py
 from __future__ import annotations
 import logging
-from PySide6.QtCore import QEvent, QRect, QSize, Qt, Signal
-from PySide6.QtGui import QBrush, QPainter
+from PySide6.QtCore import QEvent, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
-    QHBoxLayout, QLabel, QListView, QPlainTextEdit, QPushButton,
-    QScrollArea, QSplitter,
-    QStyledItemDelegate, QStyleOptionViewItem, QVBoxLayout, QWidget,
+    QHBoxLayout, QLabel, QPlainTextEdit, QPushButton,
+    QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
 )
 from git_gui.presentation.bus import CommandBus, QueryBus
 from git_gui.presentation.theme import get_theme_manager, connect_widget
 from git_gui.presentation.models.diff_model import DiffModel
 from git_gui.presentation.widgets.commit_detail import CommitDetailWidget
-from git_gui.presentation.widgets.file_list_view import FileListView as _FileListView
+from git_gui.presentation.widgets.file_navigator import FileNavigatorWidget, NavMode
 from git_gui.presentation.widgets.diff_block import (
     make_file_block, make_diff_formats, make_syntax_formats, add_hunk_widget,
 )
@@ -20,53 +18,124 @@ from git_gui.presentation.widgets.viewport_block_loader import ViewportBlockLoad
 
 logger = logging.getLogger(__name__)
 
-# (label only — color comes from theme.colors.status_color(kind) at paint time)
-_DELTA_LABEL = {
-    "modified": "M",
-    "added":    "A",
-    "deleted":  "D",
-    "renamed":  "R",
-    "unknown":  "?",
-}
 
-BADGE_SIZE = 20
-BADGE_GAP = 6
+class _StickyPinController:
+    """Owns the pin/unpin state machine and threshold computation for DiffWidget."""
 
+    HYSTERESIS_PX = 32
 
-class _FileDeltaDelegate(QStyledItemDelegate):
-    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:
-        painter.save()
-        painter.setRenderHint(QPainter.Antialiasing)
+    def __init__(self, owner: "DiffWidget") -> None:
+        self._owner = owner
+        self._threshold = 0
+        self._pinned = False
+        self._transitioning = False  # suppress re-entrant resize during reparent
 
-        rect = option.rect
+    def attach(self) -> None:
+        sb = self._owner._scroll_area.verticalScrollBar()
+        sb.valueChanged.connect(self._on_scroll)
+        self._owner._diff_model.modelReset.connect(self.recompute_threshold)
 
-        from PySide6.QtWidgets import QStyle
-        if option.state & QStyle.State_Selected:
-            painter.fillRect(rect, get_theme_manager().current.colors.as_qcolor("primary"))
+    def recompute_threshold(self) -> None:
+        self._threshold = self._owner._flow_slot.geometry().top()
 
-        fs = index.data(Qt.UserRole)
-        delta = fs.delta if fs else "unknown"
-        label = _DELTA_LABEL.get(delta, "?")
+    def force_unpin(self) -> None:
+        if self._pinned:
+            self._unpin()
 
-        badge_x = rect.left() + 4
-        badge_y = rect.top() + (rect.height() - BADGE_SIZE) // 2
-        badge_rect = QRect(badge_x, badge_y, BADGE_SIZE, BADGE_SIZE)
-        painter.setBrush(QBrush(get_theme_manager().current.colors.status_color(delta)))
-        painter.setPen(Qt.NoPen)
-        painter.drawRoundedRect(badge_rect, 3, 3)
+    def on_owner_resize(self) -> None:
+        if self._transitioning:
+            return
+        old_pinned = self._pinned
+        self.recompute_threshold()
+        sb_value = self._owner._scroll_area.verticalScrollBar().value()
+        if old_pinned and sb_value < self._threshold - self.HYSTERESIS_PX:
+            self._unpin()
+        elif not old_pinned and sb_value >= self._threshold:
+            self._pin()
 
-        painter.setPen(get_theme_manager().current.colors.as_qcolor("on_badge"))
-        painter.drawText(badge_rect, Qt.AlignCenter, label)
+    def _on_scroll(self, value: int) -> None:
+        if self._transitioning:
+            return
+        if not self._pinned and value >= self._threshold:
+            self._pin()
+        elif self._pinned and value < self._threshold - self.HYSTERESIS_PX:
+            self._unpin()
 
-        text_x = badge_x + BADGE_SIZE + BADGE_GAP
-        text_rect = QRect(text_x, rect.top(), rect.right() - text_x, rect.height())
-        painter.setPen(option.palette.text().color())
-        painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft, index.data(Qt.DisplayRole) or "")
+        # Auto-highlight pill on scroll (All mode only, while pinned).
+        if self._pinned and not self._owner._file_navigator.selection_model.hasSelection():
+            active_path = self._find_active_file_block(value)
+            if active_path is not None:
+                self._owner._file_navigator.set_active_file(active_path)
 
-        painter.restore()
+    def _find_active_file_block(self, scroll_value: int) -> str | None:
+        """Return the path of the file block whose top is at or just above the
+        viewport's visible top. Linear scan — fine for ≤~50 files per commit.
 
-    def sizeHint(self, option: QStyleOptionViewItem, index) -> QSize:
-        return QSize(option.rect.width(), max(BADGE_SIZE + 8, option.fontMetrics.height() + 8))
+        Coordinate math: frame.geometry() is relative to its parent
+        (_diff_container). _diff_container's geometry().top() is relative to
+        _scroll_content. The unified scroll value is in _scroll_content
+        coords, so the frame's absolute top = container.top() + frame.top().
+        """
+        viewport_top = scroll_value
+        container_top = self._owner._diff_container.geometry().top()
+        diff_layout = self._owner._diff_layout
+        for i in range(diff_layout.count()):
+            item = diff_layout.itemAt(i)
+            w = item.widget()
+            if w is None:
+                continue
+            path = w.property("file_path")
+            if not isinstance(path, str):
+                continue
+            top = container_top + w.geometry().top()
+            bottom = top + w.geometry().height()
+            if top <= viewport_top < bottom:
+                return path
+        return None
+
+    def _pin(self) -> None:
+        nav = self._owner._file_navigator
+        self._transitioning = True
+        self._owner.setUpdatesEnabled(False)
+        try:
+            self._owner._flow_slot.layout().removeWidget(nav)
+            nav.setParent(None)
+            self._owner._pin_slot.layout().addWidget(nav)
+            self._owner._pin_slot.setVisible(True)
+            nav.set_mode(NavMode.PILL)
+            nav.show()
+            self._pinned = True
+        finally:
+            self._owner.setUpdatesEnabled(True)
+            # Clear _transitioning on the NEXT event-loop tick so any
+            # deferred layout-flush valueChanged signals (which fire after
+            # setUpdatesEnabled(True) but before the tick boundary) are
+            # still gated by the guard. Without this, slow scrollbar drags
+            # near the threshold flicker because the deferred valueChanged
+            # races past _transitioning = False and re-enters _on_scroll
+            # mid-transition.
+            QTimer.singleShot(0, self._clear_transitioning)
+
+    def _unpin(self) -> None:
+        nav = self._owner._file_navigator
+        self._transitioning = True
+        self._owner.setUpdatesEnabled(False)
+        try:
+            self._owner._pin_slot.layout().removeWidget(nav)
+            nav.setParent(None)
+            self._owner._flow_slot.layout().addWidget(nav)
+            self._owner._pin_slot.setVisible(False)
+            nav.set_mode(NavMode.LIST)
+            nav.show()
+            self._pinned = False
+        finally:
+            self._owner.setUpdatesEnabled(True)
+            QTimer.singleShot(0, self._clear_transitioning)
+
+    def _clear_transitioning(self) -> None:
+        """Clear the re-entrance guard. Called via QTimer.singleShot from
+        _pin / _unpin so deferred Qt layout events emit while still guarded."""
+        self._transitioning = False
 
 
 class DiffWidget(QWidget):
@@ -102,7 +171,6 @@ class DiffWidget(QWidget):
         self._state_banner.setStyleSheet(
             "background-color: #5c2d2d; border: none; padding: 2px;"
         )
-        from PySide6.QtWidgets import QSizePolicy
         self._state_banner.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         self._state_banner.setVisible(False)
         self._btn_abort.clicked.connect(self._on_banner_abort)
@@ -124,44 +192,64 @@ class DiffWidget(QWidget):
         font.setFamily("Courier New")
         self._msg_view.setFont(font)
 
-        # ── Row 3: file list ────────────────────────────────────────────────
-        self._file_view = _FileListView()
-        self._file_view.setEditTriggers(QListView.NoEditTriggers)
-        self._file_view.setItemDelegate(_FileDeltaDelegate(self._file_view))
-
-        # ── Diff area: scrollable container of per-file bordered blocks ─────
-        self._diff_scroll = QScrollArea()
-        self._diff_scroll.setWidgetResizable(True)
+        # ── Diff container (will live inside the unified scroll area) ────────
         self._diff_container = QWidget()
         self._diff_layout = QVBoxLayout(self._diff_container)
         self._diff_layout.setContentsMargins(0, 4, 0, 4)
         self._diff_layout.setSpacing(8)
-        self._diff_scroll.setWidget(self._diff_container)
-        self._loader = ViewportBlockLoader(self._diff_scroll, self._realize_block)
 
+        # ── Shared file model + navigator ────────────────────────────────────
         self._diff_model = DiffModel([])
-        self._file_view.setModel(self._diff_model)
-        self._file_view.selectionModel().currentChanged.connect(
-            self._on_file_selected
-        )
-        self._file_view.deselected.connect(self._on_file_deselected)
+        self._file_navigator = FileNavigatorWidget(self._diff_model)
+        self._file_navigator.currentChanged.connect(self._on_file_selected)
+        self._file_navigator.deselected.connect(self._on_file_deselected)
 
-        # ── Row 3+4: file list + diff in splitter ───────────────────────────
-        self._splitter = QSplitter(Qt.Vertical)
-        self._splitter.addWidget(self._file_view)
-        self._splitter.addWidget(self._diff_scroll)
-        self._splitter.setSizes([160, 400])
-        self._splitter.setStretchFactor(0, 0)
-        self._splitter.setStretchFactor(1, 1)
+        # ── Unified scroll area + slots ──────────────────────────────────────
+        # _flow_slot: receives _file_navigator while unpinned (in flow inside
+        #   the scroll content, between the message and the diff blocks).
+        # _pin_slot:  receives _file_navigator while pinned (out of scroll, in
+        #   the outer layout above _scroll_area).
+        # Only one slot holds the navigator at any time.
+        self._flow_slot = QWidget()
+        flow_slot_layout = QVBoxLayout(self._flow_slot)
+        flow_slot_layout.setContentsMargins(0, 0, 0, 0)
+        flow_slot_layout.setSpacing(0)
+        flow_slot_layout.addWidget(self._file_navigator)
+
+        self._pin_slot = QWidget()
+        pin_slot_layout = QVBoxLayout(self._pin_slot)
+        pin_slot_layout.setContentsMargins(0, 0, 0, 0)
+        pin_slot_layout.setSpacing(0)
+        self._pin_slot.setVisible(False)
+
+        self._scroll_content = QWidget()
+        scroll_content_layout = QVBoxLayout(self._scroll_content)
+        scroll_content_layout.setContentsMargins(0, 0, 0, 0)
+        scroll_content_layout.setSpacing(8)
+        scroll_content_layout.addWidget(self._detail)
+        scroll_content_layout.addWidget(self._msg_view)
+        scroll_content_layout.addWidget(self._flow_slot)
+        scroll_content_layout.addWidget(self._diff_container)
+        scroll_content_layout.addStretch(1)
+
+        self._scroll_area = QScrollArea()
+        self._scroll_area.setWidgetResizable(True)
+        self._scroll_area.setFrameShape(QScrollArea.NoFrame)
+        self._scroll_area.setWidget(self._scroll_content)
+
+        # Re-point the lazy diff loader at the unified scroll area.
+        self._loader = ViewportBlockLoader(self._scroll_area, self._realize_block)
+
+        # ── Sticky pin controller ────────────────────────────────────────────
+        self._sticky_controller = _StickyPinController(self)
+        self._sticky_controller.attach()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 8, 12, 8)
         layout.setSpacing(8)
         layout.addWidget(self._state_banner, 0)
-        layout.addWidget(self._detail, 0)
-        layout.addWidget(self._msg_view, 0)
-        layout.addWidget(self._splitter, 1)
-        layout.addStretch()
+        layout.addWidget(self._pin_slot, 0)
+        layout.addWidget(self._scroll_area, 1)
 
         # Diff render formats
         self._formats = make_diff_formats()
@@ -177,7 +265,9 @@ class DiffWidget(QWidget):
         """Hide or show all sub-panels based on whether a commit is loaded."""
         self._detail.setVisible(not empty)
         self._msg_view.setVisible(not empty)
-        self._splitter.setVisible(not empty)
+        self._file_navigator.setVisible(not empty)
+        self._diff_container.setVisible(not empty)
+        self._scroll_area.setVisible(not empty)
 
     def update_state_banner(self, state_name: str) -> None:
         """Show or hide the merge/rebase state banner."""
@@ -235,10 +325,6 @@ class DiffWidget(QWidget):
             f"QPlainTextEdit {{ background: {bg}; "
             f"border: 1px solid {outline}; border-radius: 4px; }}"
         )
-        self._file_view.setStyleSheet(
-            f"QListView {{ background: {bg}; "
-            f"border: 1px solid {outline}; border-radius: 4px; padding: 6px; }}"
-        )
 
     def set_buses(self, queries: QueryBus | None, commands: CommandBus | None) -> None:
         self._queries = queries
@@ -251,12 +337,21 @@ class DiffWidget(QWidget):
         self.update_state_banner("CLEAN")
 
     def eventFilter(self, obj, event):
+        # Block mouse selection / drag on the read-only commit message but
+        # let wheel events through so they propagate to the outer
+        # QScrollArea (the unified scroll). Without this, wheel-scrolling
+        # stalls whenever the cursor sits over the message text.
         if obj is self._msg_view.viewport() and event.type() in (
-            QEvent.Wheel, QEvent.MouseButtonPress,
+            QEvent.MouseButtonPress,
             QEvent.MouseButtonRelease, QEvent.MouseMove,
         ):
-            return True  # block all mouse interaction on commit message
+            return True
         return super().eventFilter(obj, event)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if hasattr(self, "_sticky_controller"):
+            self._sticky_controller.on_owner_resize()
 
     def load_commit(self, oid: str) -> None:
         self._current_oid = oid
@@ -274,6 +369,7 @@ class DiffWidget(QWidget):
             self._diff_model.reload([])
             self._clear_blocks()
             self._set_empty_state(True)
+            self._sticky_controller.force_unpin()
             return
         self._set_empty_state(False)
         branches = self._queries.get_branches.execute()
@@ -295,6 +391,11 @@ class DiffWidget(QWidget):
         files = self._queries.get_commit_files.execute(oid)
         self._diff_model.reload(files)
         self._render_all_files(oid)
+
+        # Threshold depends on _msg_view height + flow_slot natural height,
+        # both of which have settled by now (synchronous).
+        self._sticky_controller.recompute_threshold()
+        self._sticky_controller.force_unpin()
 
     # ── Internal helpers ────────────────────────────────────────────────────
 
@@ -328,6 +429,7 @@ class DiffWidget(QWidget):
             if is_submodule else None
         )
         frame, inner = make_file_block(path, on_header_clicked=on_click)
+        frame.setProperty("file_path", path)
 
         for hunk in hunks:
             add_hunk_widget(
@@ -348,6 +450,7 @@ class DiffWidget(QWidget):
             if is_submodule else None
         )
         frame, inner = make_file_block(path, on_header_clicked=on_click)
+        frame.setProperty("file_path", path)
         skeleton = make_skeleton_container()
         inner.addWidget(skeleton)
         return frame, inner, skeleton
@@ -397,7 +500,11 @@ class DiffWidget(QWidget):
         block = self._build_file_block(path, hunks)
         self._diff_layout.addWidget(block)
         self._diff_layout.addStretch()
-        self._diff_scroll.verticalScrollBar().setValue(0)
+        if self._sticky_controller._pinned:
+            self._scroll_area.verticalScrollBar().setValue(
+                self._diff_container.geometry().top()
+            )
+        # (else: leave scroll position alone — user is in unpinned, full-context view)
 
     def _render_all_files(self, oid: str) -> None:
         """Render all file blocks as skeletons immediately, then fetch diffs in background."""
@@ -421,7 +528,10 @@ class DiffWidget(QWidget):
             block_refs.append((path, frame, inner, skeleton))
 
         self._diff_layout.addStretch()
-        self._diff_scroll.verticalScrollBar().setValue(0)
+        if self._sticky_controller._pinned:
+            self._scroll_area.verticalScrollBar().setValue(
+                self._diff_container.geometry().top()
+            )
 
         self._loader.set_blocks(block_refs)
 

@@ -1,8 +1,11 @@
 # git_gui/presentation/widgets/file_list_view.py
 """Shared QListView subclass with click-to-deselect and checkbox-without-select."""
 from __future__ import annotations
-from PySide6.QtCore import QModelIndex, Qt, Signal
-from PySide6.QtWidgets import QListView, QStyle, QStyleOptionViewItem
+from PySide6.QtCore import QModelIndex, QRect, QSize, Qt, Signal
+from PySide6.QtGui import QBrush, QPainter
+from PySide6.QtWidgets import QListView, QStyle, QStyledItemDelegate, QStyleOptionViewItem
+
+from git_gui.presentation.theme import get_theme_manager
 
 
 class FileListView(QListView):
@@ -52,3 +55,56 @@ class FileListView(QListView):
             return
 
         super().mousePressEvent(event)
+
+
+# ── Delegate for FileListView's default look ─────────────────────────────
+# Lifted here from diff.py so a future FileNavigatorWidget can import it
+# alongside FileListView.
+
+DELTA_LABEL = {
+    "modified": "M",
+    "added":    "A",
+    "deleted":  "D",
+    "renamed":  "R",
+    "unknown":  "?",
+}
+
+BADGE_SIZE = 20
+BADGE_GAP = 6
+
+
+class FileDeltaDelegate(QStyledItemDelegate):
+    """Paints a colored delta badge plus the file path for a FileListView row."""
+
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        rect = option.rect
+
+        if option.state & QStyle.State_Selected:
+            painter.fillRect(rect, get_theme_manager().current.colors.as_qcolor("primary"))
+
+        fs = index.data(Qt.UserRole)
+        delta = fs.delta if fs else "unknown"
+        label = DELTA_LABEL.get(delta, "?")
+
+        badge_x = rect.left() + 4
+        badge_y = rect.top() + (rect.height() - BADGE_SIZE) // 2
+        badge_rect = QRect(badge_x, badge_y, BADGE_SIZE, BADGE_SIZE)
+        painter.setBrush(QBrush(get_theme_manager().current.colors.status_color(delta)))
+        painter.setPen(Qt.NoPen)
+        painter.drawRoundedRect(badge_rect, 3, 3)
+
+        painter.setPen(get_theme_manager().current.colors.as_qcolor("on_badge"))
+        painter.drawText(badge_rect, Qt.AlignCenter, label)
+
+        text_x = badge_x + BADGE_SIZE + BADGE_GAP
+        text_rect = QRect(text_x, rect.top(), rect.right() - text_x, rect.height())
+        painter.setPen(option.palette.text().color())
+        painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft, index.data(Qt.DisplayRole) or "")
+
+        painter.restore()
+
+    def sizeHint(self, option: QStyleOptionViewItem, index) -> QSize:
+        return QSize(option.rect.width(), max(BADGE_SIZE + 8, option.fontMetrics.height() + 8))
