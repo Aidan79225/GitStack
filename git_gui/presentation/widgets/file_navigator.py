@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from PySide6.QtCore import QItemSelectionModel, QModelIndex, QSize, Qt, Signal
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -150,10 +150,17 @@ class FileNavigatorWidget(QWidget):
         self._all_pill.setChecked(not self.selection_model.hasSelection())
 
     def _on_pill_clicked(self, row: int) -> None:
+        """Drive the shared selection model. Visual pill state will follow via
+        _sync_pills_to_selection. The explicit resync at the end handles the case
+        where the user re-clicks the already-active pill: setCurrentIndex is a
+        no-op (no currentChanged signal), but click() already toggled the pill's
+        visual checked state to False — we reset it from the selection model.
+        """
         idx = self._model.index(row)
         self.selection_model.setCurrentIndex(
             idx, QItemSelectionModel.SelectionFlag.ClearAndSelect
         )
+        self._sync_pills_to_selection(self.selection_model.currentIndex(), QModelIndex())
 
     def _on_all_pill_clicked(self) -> None:
         self.selection_model.clearSelection()
@@ -180,19 +187,25 @@ class FileNavigatorWidget(QWidget):
 
     def set_active_file(self, path: str | None) -> None:
         """Visually highlight a pill (and ensure it is on screen) without
-        changing the selection model. Used by auto-highlight on scroll."""
-        if path is None:
+        changing the selection model. Used by auto-highlight on scroll.
+
+        DO NOT call this in response to a pill click; pill clicks must go
+        through `_on_pill_clicked` so the selection model becomes the source
+        of truth. This method is for read-only visual sync from external
+        state (e.g., the diff scroll position).
+        """
+        # Unknown / stale path or explicit None → highlight "All".
+        if path is None or path not in self._pill_buttons:
             self._all_pill.setChecked(True)
             for btn in self._pill_buttons.values():
                 btn.setChecked(False)
             return
 
         self._all_pill.setChecked(False)
-        active_btn = self._pill_buttons.get(path)
+        active_btn = self._pill_buttons[path]
         for p, btn in self._pill_buttons.items():
             btn.setChecked(p == path)
-        if active_btn is not None:
-            self._pill_root.ensureWidgetVisible(active_btn)
+        self._pill_root.ensureWidgetVisible(active_btn)
 
     # ── Theming ─────────────────────────────────────────────────────────────
 

@@ -151,3 +151,34 @@ def test_model_reset_rebuilds_pill_strip(navigator, qtbot):
 
     assert "x.py" in widget._pill_buttons
     assert "a.py" not in widget._pill_buttons
+
+
+def test_clicking_active_pill_keeps_visual_in_sync(navigator, qtbot):
+    """Re-clicking an already-active pill should not desync visual state.
+
+    QPushButton.click() toggles checked before emitting clicked, so without
+    a defensive resync the pill would end up unchecked while the selection
+    model still holds it selected.
+    """
+    widget, _ = navigator
+    widget.set_mode(NavMode.PILL)
+
+    pill = widget._pill_buttons["b.py"]
+    pill.click()  # First click: select b.py
+    assert widget.selection_model.currentIndex().row() == 1
+    assert pill.isChecked()
+
+    pill.click()  # Second click on the same pill
+    assert widget.selection_model.currentIndex().row() == 1, "selection should still be b.py"
+    assert pill.isChecked(), "pill should remain checked since selection didn't change"
+
+
+def test_set_active_file_unknown_path_falls_back_to_all(navigator):
+    """An unknown path (e.g., stale after model reload) highlights All, not nothing."""
+    widget, _ = navigator
+    widget.set_mode(NavMode.PILL)
+
+    widget.set_active_file("nonexistent.py")
+
+    assert widget._all_pill.isChecked()
+    assert not any(p.isChecked() for p in widget._pill_buttons.values())
