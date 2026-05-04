@@ -311,3 +311,58 @@ def test_auto_highlight_disabled_while_unpinned(multi_file_diff_widget, qtbot):
 
     assert widget._sticky_controller._pinned is False
     assert calls == [], f"set_active_file should not fire while unpinned; got {calls}"
+
+
+# ── 7. Pin-conditional scroll on filter change ───────────────────────
+
+
+def test_render_single_file_while_pinned_calls_setvalue_with_diff_container_top(
+    multi_file_diff_widget, qtbot
+):
+    """When pinned, _render_single_file scrolls to _diff_container.geometry().top()."""
+    widget, _ = multi_file_diff_widget
+    widget._sticky_controller._pinned = True
+
+    sb = widget._scroll_area.verticalScrollBar()
+    with patch.object(sb, "setValue") as mock_setvalue:
+        widget._render_single_file("a.py", [])
+        mock_setvalue.assert_called_with(widget._diff_container.geometry().top())
+
+
+def test_render_single_file_while_unpinned_does_not_call_setvalue(
+    multi_file_diff_widget, qtbot
+):
+    """When unpinned, _render_single_file leaves scroll position alone."""
+    widget, _ = multi_file_diff_widget
+    widget._sticky_controller._pinned = False
+
+    sb = widget._scroll_area.verticalScrollBar()
+    with patch.object(sb, "setValue") as mock_setvalue:
+        widget._render_single_file("a.py", [])
+        mock_setvalue.assert_not_called()
+
+
+def test_render_all_files_while_pinned_calls_setvalue_with_diff_container_top(
+    multi_file_diff_widget, qtbot
+):
+    """When pinned, _render_all_files scrolls to _diff_container.geometry().top()."""
+    widget, _ = multi_file_diff_widget
+    widget._sticky_controller._pinned = True
+
+    sb = widget._scroll_area.verticalScrollBar()
+    with patch.object(sb, "setValue") as mock_setvalue, patch("threading.Thread"):
+        widget._render_all_files("abc123")
+        mock_setvalue.assert_called_with(widget._diff_container.geometry().top())
+
+
+def test_render_all_files_while_unpinned_does_not_call_setvalue(
+    multi_file_diff_widget, qtbot
+):
+    """When unpinned, _render_all_files leaves scroll position alone."""
+    widget, _ = multi_file_diff_widget
+    widget._sticky_controller._pinned = False
+
+    sb = widget._scroll_area.verticalScrollBar()
+    with patch.object(sb, "setValue") as mock_setvalue, patch("threading.Thread"):
+        widget._render_all_files("abc123")
+        mock_setvalue.assert_not_called()

@@ -484,7 +484,11 @@ class DiffWidget(QWidget):
         block = self._build_file_block(path, hunks)
         self._diff_layout.addWidget(block)
         self._diff_layout.addStretch()
-        self._scroll_area.verticalScrollBar().setValue(0)
+        if self._sticky_controller._pinned:
+            self._scroll_area.verticalScrollBar().setValue(
+                self._diff_container.geometry().top()
+            )
+        # (else: leave scroll position alone — user is in unpinned, full-context view)
 
     def _render_all_files(self, oid: str) -> None:
         """Render all file blocks as skeletons immediately, then fetch diffs in background."""
@@ -508,7 +512,10 @@ class DiffWidget(QWidget):
             block_refs.append((path, frame, inner, skeleton))
 
         self._diff_layout.addStretch()
-        self._scroll_area.verticalScrollBar().setValue(0)
+        if self._sticky_controller._pinned:
+            self._scroll_area.verticalScrollBar().setValue(
+                self._diff_container.geometry().top()
+            )
 
         self._loader.set_blocks(block_refs)
 
