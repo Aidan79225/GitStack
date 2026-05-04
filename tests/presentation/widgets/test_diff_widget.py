@@ -169,10 +169,12 @@ def test_unpin_when_scroll_below_threshold_minus_hysteresis(diff_widget, qtbot):
 
     widget._sticky_controller._threshold = 100
     widget._sticky_controller._on_scroll(150)
+    qtbot.wait(1)  # let the deferred _transitioning reset run
     assert widget._sticky_controller._pinned
 
     # Drop well below threshold (more than hysteresis = 4)
     widget._sticky_controller._on_scroll(50)
+    qtbot.wait(1)
 
     assert widget._sticky_controller._pinned is False
     assert widget._file_navigator.parent() is widget._flow_slot
@@ -186,6 +188,7 @@ def test_hysteresis_prevents_unpin_just_below_threshold(diff_widget, qtbot):
 
     widget._sticky_controller._threshold = 100
     widget._sticky_controller._on_scroll(150)
+    qtbot.wait(1)  # let the deferred _transitioning reset run
     assert widget._sticky_controller._pinned
 
     h = widget._sticky_controller.HYSTERESIS_PX
@@ -196,6 +199,7 @@ def test_hysteresis_prevents_unpin_just_below_threshold(diff_widget, qtbot):
 
     # Just outside the hysteresis band: unpin.
     widget._sticky_controller._on_scroll(100 - h - 1)
+    qtbot.wait(1)
     assert widget._sticky_controller._pinned is False
 
 
@@ -206,10 +210,12 @@ def test_load_error_forces_unpin(diff_widget, qtbot):
 
     widget._sticky_controller._threshold = 100
     widget._sticky_controller._on_scroll(150)
+    qtbot.wait(1)  # let the deferred _transitioning reset run
     assert widget._sticky_controller._pinned
 
     queries.get_commit_detail.execute.side_effect = RuntimeError("gone")
     widget.load_commit("bad_oid")
+    qtbot.wait(1)
 
     assert widget._sticky_controller._pinned is False
     assert widget._file_navigator.parent() is widget._flow_slot
@@ -253,6 +259,7 @@ def test_auto_highlight_calls_set_active_file_when_pinned_and_unfiltered(
     # Pin via the controller's own logic (deterministic).
     widget._sticky_controller._threshold = 100
     widget._sticky_controller._on_scroll(150)
+    qtbot.wait(1)  # let the deferred _transitioning reset run
     assert widget._sticky_controller._pinned
 
     # Stub the block-finder to return a known path.
@@ -275,6 +282,7 @@ def test_auto_highlight_disabled_while_filtered(multi_file_diff_widget, qtbot):
     # Pin
     widget._sticky_controller._threshold = 100
     widget._sticky_controller._on_scroll(150)
+    qtbot.wait(1)  # let the deferred _transitioning reset run
     assert widget._sticky_controller._pinned
 
     # Filter to one file (sets the selection model)

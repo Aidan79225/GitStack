@@ -98,7 +98,7 @@ class FileNavigatorWidget(QWidget):
 
         self._pill_container = QWidget()
         self._pill_layout = QHBoxLayout(self._pill_container)
-        self._pill_layout.setContentsMargins(4, 1, 4, 1)
+        self._pill_layout.setContentsMargins(4, 0, 4, 0)
         self._pill_layout.setSpacing(4)
         self._pill_layout.addStretch(1)  # right-side filler
         self._pill_root.setWidget(self._pill_container)
@@ -107,6 +107,7 @@ class FileNavigatorWidget(QWidget):
         # "All" synthetic pill (always present, at index 0).
         self._all_pill = QPushButton("All")
         self._all_pill.setCheckable(True)
+        self._all_pill.setFixedHeight(20)
         self._all_pill.setChecked(True)
         self._all_pill.clicked.connect(self._on_all_pill_clicked)
         self._pill_layout.insertWidget(0, self._all_pill)
@@ -178,6 +179,7 @@ class FileNavigatorWidget(QWidget):
             btn.setIcon(_delta_dot_icon(fs.delta))
             btn.setIconSize(QSize(10, 10))
             btn.setCheckable(True)
+            btn.setFixedHeight(20)
             btn.setChecked(False)
             btn.clicked.connect(lambda _checked=False, r=row: self._on_pill_clicked(r))
             # Insert before the stretch (which is at the end).
@@ -270,8 +272,7 @@ class FileNavigatorWidget(QWidget):
             f"  color: {on_surface};"
             f"  border: 1px solid {outline};"
             f"  border-radius: 12px;"
-            f"  padding: 3px 12px;"
-            f"  min-height: 14px;"
+            f"  padding: 1px 10px;"
             f"  outline: none;"
             f"}}"
             f"QPushButton:hover {{"

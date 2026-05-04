@@ -1,7 +1,7 @@
 # git_gui/presentation/widgets/diff.py
 from __future__ import annotations
 import logging
-from PySide6.QtCore import QEvent, Qt, Signal
+from PySide6.QtCore import QEvent, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout, QLabel, QPlainTextEdit, QPushButton,
     QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
@@ -107,7 +107,14 @@ class _StickyPinController:
             self._pinned = True
         finally:
             self._owner.setUpdatesEnabled(True)
-            self._transitioning = False
+            # Clear _transitioning on the NEXT event-loop tick so any
+            # deferred layout-flush valueChanged signals (which fire after
+            # setUpdatesEnabled(True) but before the tick boundary) are
+            # still gated by the guard. Without this, slow scrollbar drags
+            # near the threshold flicker because the deferred valueChanged
+            # races past _transitioning = False and re-enters _on_scroll
+            # mid-transition.
+            QTimer.singleShot(0, self._clear_transitioning)
 
     def _unpin(self) -> None:
         nav = self._owner._file_navigator
@@ -123,7 +130,12 @@ class _StickyPinController:
             self._pinned = False
         finally:
             self._owner.setUpdatesEnabled(True)
-            self._transitioning = False
+            QTimer.singleShot(0, self._clear_transitioning)
+
+    def _clear_transitioning(self) -> None:
+        """Clear the re-entrance guard. Called via QTimer.singleShot from
+        _pin / _unpin so deferred Qt layout events emit while still guarded."""
+        self._transitioning = False
 
 
 class DiffWidget(QWidget):
