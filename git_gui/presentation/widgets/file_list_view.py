@@ -1,8 +1,11 @@
 # git_gui/presentation/widgets/file_list_view.py
 """Shared QListView subclass with click-to-deselect and checkbox-without-select."""
 from __future__ import annotations
-from PySide6.QtCore import QModelIndex, Qt, Signal
-from PySide6.QtWidgets import QListView, QStyle, QStyleOptionViewItem
+from PySide6.QtCore import QModelIndex, QRect, QSize, Qt, Signal
+from PySide6.QtGui import QBrush, QPainter
+from PySide6.QtWidgets import QListView, QStyle, QStyledItemDelegate, QStyleOptionViewItem
+
+from git_gui.presentation.theme import get_theme_manager
 
 
 class FileListView(QListView):
@@ -55,15 +58,8 @@ class FileListView(QListView):
 
 
 # ── Delegate for FileListView's default look ─────────────────────────────
-# Moved here from diff.py so FileListView and FileNavigatorWidget can both
-# use it without circular imports.
-
-from PySide6.QtCore import QRect, QSize
-from PySide6.QtGui import QBrush, QPainter
-from PySide6.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem
-
-from git_gui.presentation.theme import get_theme_manager
-
+# Lifted here from diff.py so a future FileNavigatorWidget can import it
+# alongside FileListView.
 
 DELTA_LABEL = {
     "modified": "M",
