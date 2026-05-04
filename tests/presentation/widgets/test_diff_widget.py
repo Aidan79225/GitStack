@@ -56,7 +56,7 @@ def diff_widget(qtbot):
 
 
 def test_load_commit_shows_panels(diff_widget, qtbot):
-    """After a successful load_commit, detail/message/splitter are visible."""
+    """After a successful load_commit, detail/message/scroll_area are visible."""
     widget, queries = diff_widget
 
     # Patch Thread so _render_all_files doesn't spawn a real thread
@@ -65,7 +65,8 @@ def test_load_commit_shows_panels(diff_widget, qtbot):
 
     assert widget._detail.isVisible()
     assert widget._msg_view.isVisible()
-    assert widget._splitter.isVisible()
+    assert widget._scroll_area.isVisible()
+    assert widget._file_navigator.isVisible()
 
 
 # ── 2. load_commit error hides panels ─────────────────────────────────
@@ -81,7 +82,8 @@ def test_load_commit_error_hides_panels(diff_widget, qtbot):
 
     assert not widget._detail.isVisible()
     assert not widget._msg_view.isVisible()
-    assert not widget._splitter.isVisible()
+    assert not widget._scroll_area.isVisible()
+    assert not widget._file_navigator.isVisible()
 
 
 # ── 3. set_buses(None, None) enters empty state ──────────────────────
@@ -94,13 +96,14 @@ def test_set_buses_none_enters_empty_state(diff_widget, qtbot):
     # First show panels so we can verify they get hidden
     with patch("threading.Thread"):
         widget.load_commit("abc123")
-    assert widget._splitter.isVisible()
+    assert widget._scroll_area.isVisible()
 
     widget.set_buses(None, None)
 
     assert not widget._detail.isVisible()
     assert not widget._msg_view.isVisible()
-    assert not widget._splitter.isVisible()
+    assert not widget._scroll_area.isVisible()
+    assert not widget._file_navigator.isVisible()
 
 
 # ── 4. _clear_blocks clears loader ───────────────────────────────────

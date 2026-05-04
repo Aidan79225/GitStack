@@ -3,15 +3,14 @@ from __future__ import annotations
 import logging
 from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtWidgets import (
-    QHBoxLayout, QLabel, QListView, QPlainTextEdit, QPushButton,
-    QScrollArea, QSplitter,
-    QVBoxLayout, QWidget,
+    QHBoxLayout, QLabel, QPlainTextEdit, QPushButton,
+    QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
 )
 from git_gui.presentation.bus import CommandBus, QueryBus
 from git_gui.presentation.theme import get_theme_manager, connect_widget
 from git_gui.presentation.models.diff_model import DiffModel
 from git_gui.presentation.widgets.commit_detail import CommitDetailWidget
-from git_gui.presentation.widgets.file_list_view import FileListView as _FileListView, FileDeltaDelegate
+from git_gui.presentation.widgets.file_navigator import FileNavigatorWidget, NavMode
 from git_gui.presentation.widgets.diff_block import (
     make_file_block, make_diff_formats, make_syntax_formats, add_hunk_widget,
 )
@@ -53,7 +52,6 @@ class DiffWidget(QWidget):
         self._state_banner.setStyleSheet(
             "background-color: #5c2d2d; border: none; padding: 2px;"
         )
-        from PySide6.QtWidgets import QSizePolicy
         self._state_banner.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         self._state_banner.setVisible(False)
         self._btn_abort.clicked.connect(self._on_banner_abort)
@@ -75,44 +73,59 @@ class DiffWidget(QWidget):
         font.setFamily("Courier New")
         self._msg_view.setFont(font)
 
-        # ── Row 3: file list ────────────────────────────────────────────────
-        self._file_view = _FileListView()
-        self._file_view.setEditTriggers(QListView.NoEditTriggers)
-        self._file_view.setItemDelegate(FileDeltaDelegate(self._file_view))
-
-        # ── Diff area: scrollable container of per-file bordered blocks ─────
-        self._diff_scroll = QScrollArea()
-        self._diff_scroll.setWidgetResizable(True)
+        # ── Diff container (will live inside the unified scroll area) ────────
         self._diff_container = QWidget()
         self._diff_layout = QVBoxLayout(self._diff_container)
         self._diff_layout.setContentsMargins(0, 4, 0, 4)
         self._diff_layout.setSpacing(8)
-        self._diff_scroll.setWidget(self._diff_container)
-        self._loader = ViewportBlockLoader(self._diff_scroll, self._realize_block)
 
+        # ── Shared file model + navigator ────────────────────────────────────
         self._diff_model = DiffModel([])
-        self._file_view.setModel(self._diff_model)
-        self._file_view.selectionModel().currentChanged.connect(
-            self._on_file_selected
-        )
-        self._file_view.deselected.connect(self._on_file_deselected)
+        self._file_navigator = FileNavigatorWidget(self._diff_model)
+        self._file_navigator.currentChanged.connect(self._on_file_selected)
+        self._file_navigator.deselected.connect(self._on_file_deselected)
 
-        # ── Row 3+4: file list + diff in splitter ───────────────────────────
-        self._splitter = QSplitter(Qt.Vertical)
-        self._splitter.addWidget(self._file_view)
-        self._splitter.addWidget(self._diff_scroll)
-        self._splitter.setSizes([160, 400])
-        self._splitter.setStretchFactor(0, 0)
-        self._splitter.setStretchFactor(1, 1)
+        # ── Unified scroll area + slots ──────────────────────────────────────
+        # _flow_slot: receives _file_navigator while unpinned (in flow inside
+        #   the scroll content, between the message and the diff blocks).
+        # _pin_slot:  receives _file_navigator while pinned (out of scroll, in
+        #   the outer layout above _scroll_area).
+        # Only one slot holds the navigator at any time.
+        self._flow_slot = QWidget()
+        flow_slot_layout = QVBoxLayout(self._flow_slot)
+        flow_slot_layout.setContentsMargins(0, 0, 0, 0)
+        flow_slot_layout.setSpacing(0)
+        flow_slot_layout.addWidget(self._file_navigator)
+
+        self._pin_slot = QWidget()
+        pin_slot_layout = QVBoxLayout(self._pin_slot)
+        pin_slot_layout.setContentsMargins(0, 0, 0, 0)
+        pin_slot_layout.setSpacing(0)
+
+        self._scroll_content = QWidget()
+        scroll_content_layout = QVBoxLayout(self._scroll_content)
+        scroll_content_layout.setContentsMargins(0, 0, 0, 0)
+        scroll_content_layout.setSpacing(8)
+        scroll_content_layout.addWidget(self._detail)
+        scroll_content_layout.addWidget(self._msg_view)
+        scroll_content_layout.addWidget(self._flow_slot)
+        scroll_content_layout.addWidget(self._diff_container)
+        scroll_content_layout.addStretch(1)
+
+        self._scroll_area = QScrollArea()
+        self._scroll_area.setWidgetResizable(True)
+        self._scroll_area.setFrameShape(QScrollArea.NoFrame)
+        self._scroll_area.setWidget(self._scroll_content)
+
+        # Re-point the lazy diff loader at the unified scroll area.
+        self._loader = ViewportBlockLoader(self._scroll_area, self._realize_block)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 8, 12, 8)
         layout.setSpacing(8)
         layout.addWidget(self._state_banner, 0)
-        layout.addWidget(self._detail, 0)
-        layout.addWidget(self._msg_view, 0)
-        layout.addWidget(self._splitter, 1)
-        layout.addStretch()
+        layout.addWidget(self._pin_slot, 0)
+        layout.addWidget(self._scroll_area, 1)
 
         # Diff render formats
         self._formats = make_diff_formats()
@@ -128,7 +141,9 @@ class DiffWidget(QWidget):
         """Hide or show all sub-panels based on whether a commit is loaded."""
         self._detail.setVisible(not empty)
         self._msg_view.setVisible(not empty)
-        self._splitter.setVisible(not empty)
+        self._file_navigator.setVisible(not empty)
+        self._diff_container.setVisible(not empty)
+        self._scroll_area.setVisible(not empty)
 
     def update_state_banner(self, state_name: str) -> None:
         """Show or hide the merge/rebase state banner."""
@@ -185,10 +200,6 @@ class DiffWidget(QWidget):
         self._msg_view.setStyleSheet(
             f"QPlainTextEdit {{ background: {bg}; "
             f"border: 1px solid {outline}; border-radius: 4px; }}"
-        )
-        self._file_view.setStyleSheet(
-            f"QListView {{ background: {bg}; "
-            f"border: 1px solid {outline}; border-radius: 4px; padding: 6px; }}"
         )
 
     def set_buses(self, queries: QueryBus | None, commands: CommandBus | None) -> None:
@@ -348,7 +359,7 @@ class DiffWidget(QWidget):
         block = self._build_file_block(path, hunks)
         self._diff_layout.addWidget(block)
         self._diff_layout.addStretch()
-        self._diff_scroll.verticalScrollBar().setValue(0)
+        self._scroll_area.verticalScrollBar().setValue(0)
 
     def _render_all_files(self, oid: str) -> None:
         """Render all file blocks as skeletons immediately, then fetch diffs in background."""
@@ -372,7 +383,7 @@ class DiffWidget(QWidget):
             block_refs.append((path, frame, inner, skeleton))
 
         self._diff_layout.addStretch()
-        self._diff_scroll.verticalScrollBar().setValue(0)
+        self._scroll_area.verticalScrollBar().setValue(0)
 
         self._loader.set_blocks(block_refs)
 
