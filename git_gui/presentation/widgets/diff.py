@@ -1,72 +1,23 @@
 # git_gui/presentation/widgets/diff.py
 from __future__ import annotations
 import logging
-from PySide6.QtCore import QEvent, QRect, QSize, Qt, Signal
-from PySide6.QtGui import QBrush, QPainter
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout, QLabel, QListView, QPlainTextEdit, QPushButton,
     QScrollArea, QSplitter,
-    QStyledItemDelegate, QStyleOptionViewItem, QVBoxLayout, QWidget,
+    QVBoxLayout, QWidget,
 )
 from git_gui.presentation.bus import CommandBus, QueryBus
 from git_gui.presentation.theme import get_theme_manager, connect_widget
 from git_gui.presentation.models.diff_model import DiffModel
 from git_gui.presentation.widgets.commit_detail import CommitDetailWidget
-from git_gui.presentation.widgets.file_list_view import FileListView as _FileListView
+from git_gui.presentation.widgets.file_list_view import FileListView as _FileListView, FileDeltaDelegate
 from git_gui.presentation.widgets.diff_block import (
     make_file_block, make_diff_formats, make_syntax_formats, add_hunk_widget,
 )
 from git_gui.presentation.widgets.viewport_block_loader import ViewportBlockLoader
 
 logger = logging.getLogger(__name__)
-
-# (label only — color comes from theme.colors.status_color(kind) at paint time)
-_DELTA_LABEL = {
-    "modified": "M",
-    "added":    "A",
-    "deleted":  "D",
-    "renamed":  "R",
-    "unknown":  "?",
-}
-
-BADGE_SIZE = 20
-BADGE_GAP = 6
-
-
-class _FileDeltaDelegate(QStyledItemDelegate):
-    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:
-        painter.save()
-        painter.setRenderHint(QPainter.Antialiasing)
-
-        rect = option.rect
-
-        from PySide6.QtWidgets import QStyle
-        if option.state & QStyle.State_Selected:
-            painter.fillRect(rect, get_theme_manager().current.colors.as_qcolor("primary"))
-
-        fs = index.data(Qt.UserRole)
-        delta = fs.delta if fs else "unknown"
-        label = _DELTA_LABEL.get(delta, "?")
-
-        badge_x = rect.left() + 4
-        badge_y = rect.top() + (rect.height() - BADGE_SIZE) // 2
-        badge_rect = QRect(badge_x, badge_y, BADGE_SIZE, BADGE_SIZE)
-        painter.setBrush(QBrush(get_theme_manager().current.colors.status_color(delta)))
-        painter.setPen(Qt.NoPen)
-        painter.drawRoundedRect(badge_rect, 3, 3)
-
-        painter.setPen(get_theme_manager().current.colors.as_qcolor("on_badge"))
-        painter.drawText(badge_rect, Qt.AlignCenter, label)
-
-        text_x = badge_x + BADGE_SIZE + BADGE_GAP
-        text_rect = QRect(text_x, rect.top(), rect.right() - text_x, rect.height())
-        painter.setPen(option.palette.text().color())
-        painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft, index.data(Qt.DisplayRole) or "")
-
-        painter.restore()
-
-    def sizeHint(self, option: QStyleOptionViewItem, index) -> QSize:
-        return QSize(option.rect.width(), max(BADGE_SIZE + 8, option.fontMetrics.height() + 8))
 
 
 class DiffWidget(QWidget):
@@ -127,7 +78,7 @@ class DiffWidget(QWidget):
         # ── Row 3: file list ────────────────────────────────────────────────
         self._file_view = _FileListView()
         self._file_view.setEditTriggers(QListView.NoEditTriggers)
-        self._file_view.setItemDelegate(_FileDeltaDelegate(self._file_view))
+        self._file_view.setItemDelegate(FileDeltaDelegate(self._file_view))
 
         # ── Diff area: scrollable container of per-file bordered blocks ─────
         self._diff_scroll = QScrollArea()
