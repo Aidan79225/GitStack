@@ -61,6 +61,38 @@ class _StickyPinController:
         elif self._pinned and value < self._threshold - self.HYSTERESIS_PX:
             self._unpin()
 
+        # Auto-highlight pill on scroll (All mode only, while pinned).
+        if self._pinned and not self._owner._file_navigator.selection_model.hasSelection():
+            active_path = self._find_active_file_block(value)
+            if active_path is not None:
+                self._owner._file_navigator.set_active_file(active_path)
+
+    def _find_active_file_block(self, scroll_value: int) -> str | None:
+        """Return the path of the file block whose top is at or just above the
+        viewport's visible top. Linear scan — fine for ≤~50 files per commit.
+
+        Coordinate math: frame.geometry() is relative to its parent
+        (_diff_container). _diff_container's geometry().top() is relative to
+        _scroll_content. The unified scroll value is in _scroll_content
+        coords, so the frame's absolute top = container.top() + frame.top().
+        """
+        viewport_top = scroll_value
+        container_top = self._owner._diff_container.geometry().top()
+        diff_layout = self._owner._diff_layout
+        for i in range(diff_layout.count()):
+            item = diff_layout.itemAt(i)
+            w = item.widget()
+            if w is None:
+                continue
+            path = w.property("file_path")
+            if not isinstance(path, str):
+                continue
+            top = container_top + w.geometry().top()
+            bottom = top + w.geometry().height()
+            if top <= viewport_top < bottom:
+                return path
+        return None
+
     def _pin(self) -> None:
         nav = self._owner._file_navigator
         self._transitioning = True
@@ -381,6 +413,7 @@ class DiffWidget(QWidget):
             if is_submodule else None
         )
         frame, inner = make_file_block(path, on_header_clicked=on_click)
+        frame.setProperty("file_path", path)
 
         for hunk in hunks:
             add_hunk_widget(
@@ -401,6 +434,7 @@ class DiffWidget(QWidget):
             if is_submodule else None
         )
         frame, inner = make_file_block(path, on_header_clicked=on_click)
+        frame.setProperty("file_path", path)
         skeleton = make_skeleton_container()
         inner.addWidget(skeleton)
         return frame, inner, skeleton

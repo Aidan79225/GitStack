@@ -211,3 +211,103 @@ def test_load_error_forces_unpin(diff_widget, qtbot):
 
     assert widget._sticky_controller._pinned is False
     assert widget._file_navigator.parent() is widget._flow_slot
+
+
+# ── 6. Auto-highlight on scroll ───────────────────────────────────────
+
+
+@pytest.fixture
+def multi_file_diff_widget(qtbot):
+    """A DiffWidget loaded with three files for auto-highlight testing."""
+    queries = _make_mock_queries()
+    queries.get_commit_files.execute.return_value = [
+        FileStatus(path="a.py", status="staged", delta="modified"),
+        FileStatus(path="b.py", status="staged", delta="added"),
+        FileStatus(path="c.py", status="staged", delta="deleted"),
+    ]
+    commands = MagicMock()
+    widget = DiffWidget(queries, commands)
+    qtbot.addWidget(widget)
+    widget.show()
+    with patch("threading.Thread"):
+        widget.load_commit("abc123")
+    widget.adjustSize()
+    widget.layout().activate()
+    return widget, queries
+
+
+def test_auto_highlight_calls_set_active_file_when_pinned_and_unfiltered(
+    multi_file_diff_widget, qtbot
+):
+    """When _on_scroll runs while pinned + unfiltered, the controller
+    consults _find_active_file_block and calls set_active_file with its result.
+
+    Stubbed: threshold (so we can pin without depending on real geometry) and
+    _find_active_file_block (so we don't depend on file frames having real
+    geometry in a hidden qtbot widget).
+    """
+    widget, _ = multi_file_diff_widget
+
+    # Pin via the controller's own logic (deterministic).
+    widget._sticky_controller._threshold = 100
+    widget._sticky_controller._on_scroll(150)
+    assert widget._sticky_controller._pinned
+
+    # Stub the block-finder to return a known path.
+    widget._sticky_controller._find_active_file_block = lambda v: "b.py"
+
+    # Spy on set_active_file.
+    calls = []
+    widget._file_navigator.set_active_file = lambda p: calls.append(p)
+
+    # Trigger another scroll event.
+    widget._sticky_controller._on_scroll(200)
+
+    assert calls == ["b.py"]
+
+
+def test_auto_highlight_disabled_while_filtered(multi_file_diff_widget, qtbot):
+    widget, queries = multi_file_diff_widget
+    queries.get_file_diff.execute.return_value = []
+
+    # Pin
+    widget._sticky_controller._threshold = 100
+    widget._sticky_controller._on_scroll(150)
+    assert widget._sticky_controller._pinned
+
+    # Filter to one file (sets the selection model)
+    widget._file_navigator.selection_model.setCurrentIndex(
+        widget._diff_model.index(1),
+        widget._file_navigator.selection_model.SelectionFlag.ClearAndSelect,
+    )
+
+    # Stub the block-finder so we'd see calls if the gate failed.
+    widget._sticky_controller._find_active_file_block = lambda v: "b.py"
+
+    # Spy
+    calls = []
+    widget._file_navigator.set_active_file = lambda p: calls.append(p)
+
+    # Scroll while filtered.
+    widget._sticky_controller._on_scroll(200)
+
+    assert calls == [], f"set_active_file should not fire while filtered; got {calls}"
+
+
+def test_auto_highlight_disabled_while_unpinned(multi_file_diff_widget, qtbot):
+    widget, _ = multi_file_diff_widget
+
+    # Stay unpinned; threshold high enough that _on_scroll(50) doesn't pin.
+    widget._sticky_controller._threshold = 100
+
+    # Stub
+    widget._sticky_controller._find_active_file_block = lambda v: "b.py"
+
+    # Spy
+    calls = []
+    widget._file_navigator.set_active_file = lambda p: calls.append(p)
+
+    widget._sticky_controller._on_scroll(50)
+
+    assert widget._sticky_controller._pinned is False
+    assert calls == [], f"set_active_file should not fire while unpinned; got {calls}"
