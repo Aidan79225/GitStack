@@ -126,3 +126,88 @@ def test_clear_blocks_clears_loader(diff_widget, qtbot):
     assert widget._loader._block_refs == []
     assert widget._loader._loaded_paths == set()
     assert widget._loader._diff_map == {}
+
+
+# ── 5. Sticky-pin controller ─────────────────────────────────────────
+
+
+from git_gui.presentation.widgets.file_navigator import NavMode
+
+
+def test_threshold_recomputes_to_flow_slot_top_after_load(diff_widget, qtbot):
+    """recompute_threshold reads _flow_slot.geometry().top() and stores it."""
+    widget, _ = diff_widget
+    with patch("threading.Thread"):
+        widget.load_commit("abc123")
+    widget.adjustSize()
+    widget.layout().activate()
+    # Whatever value Qt computed for _flow_slot.geometry().top() must equal
+    # what the controller cached during load_commit's recompute call.
+    assert widget._sticky_controller._threshold == widget._flow_slot.geometry().top()
+
+
+def test_pin_when_scroll_passes_threshold(diff_widget, qtbot):
+    """Driving _on_scroll past _threshold reparents the navigator to _pin_slot."""
+    widget, _ = diff_widget
+    with patch("threading.Thread"):
+        widget.load_commit("abc123")
+
+    # Inject a known threshold so the test does not depend on Qt geometry,
+    # which is unreliable for a hidden/small qtbot widget.
+    widget._sticky_controller._threshold = 100
+    widget._sticky_controller._on_scroll(150)
+
+    assert widget._sticky_controller._pinned is True
+    assert widget._file_navigator.parent() is widget._pin_slot
+    assert widget._file_navigator.mode() == NavMode.PILL
+
+
+def test_unpin_when_scroll_below_threshold_minus_hysteresis(diff_widget, qtbot):
+    widget, _ = diff_widget
+    with patch("threading.Thread"):
+        widget.load_commit("abc123")
+
+    widget._sticky_controller._threshold = 100
+    widget._sticky_controller._on_scroll(150)
+    assert widget._sticky_controller._pinned
+
+    # Drop well below threshold (more than hysteresis = 4)
+    widget._sticky_controller._on_scroll(50)
+
+    assert widget._sticky_controller._pinned is False
+    assert widget._file_navigator.parent() is widget._flow_slot
+    assert widget._file_navigator.mode() == NavMode.LIST
+
+
+def test_hysteresis_prevents_unpin_just_below_threshold(diff_widget, qtbot):
+    widget, _ = diff_widget
+    with patch("threading.Thread"):
+        widget.load_commit("abc123")
+
+    widget._sticky_controller._threshold = 100
+    widget._sticky_controller._on_scroll(150)
+    assert widget._sticky_controller._pinned
+
+    # Within hysteresis (98 > threshold - 4 = 96): stay pinned
+    widget._sticky_controller._on_scroll(98)
+    assert widget._sticky_controller._pinned is True
+
+    # Outside hysteresis (95 < 96): unpin
+    widget._sticky_controller._on_scroll(95)
+    assert widget._sticky_controller._pinned is False
+
+
+def test_load_error_forces_unpin(diff_widget, qtbot):
+    widget, queries = diff_widget
+    with patch("threading.Thread"):
+        widget.load_commit("abc123")
+
+    widget._sticky_controller._threshold = 100
+    widget._sticky_controller._on_scroll(150)
+    assert widget._sticky_controller._pinned
+
+    queries.get_commit_detail.execute.side_effect = RuntimeError("gone")
+    widget.load_commit("bad_oid")
+
+    assert widget._sticky_controller._pinned is False
+    assert widget._file_navigator.parent() is widget._flow_slot

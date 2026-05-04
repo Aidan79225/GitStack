@@ -19,6 +19,79 @@ from git_gui.presentation.widgets.viewport_block_loader import ViewportBlockLoad
 logger = logging.getLogger(__name__)
 
 
+class _StickyPinController:
+    """Owns the pin/unpin state machine and threshold computation for DiffWidget."""
+
+    HYSTERESIS_PX = 4
+
+    def __init__(self, owner: "DiffWidget") -> None:
+        self._owner = owner
+        self._threshold = 0
+        self._pinned = False
+        self._transitioning = False  # suppress re-entrant resize during reparent
+
+    def attach(self) -> None:
+        sb = self._owner._scroll_area.verticalScrollBar()
+        sb.valueChanged.connect(self._on_scroll)
+        self._owner._diff_model.modelReset.connect(self.recompute_threshold)
+
+    def recompute_threshold(self) -> None:
+        self._threshold = self._owner._flow_slot.geometry().top()
+
+    def force_unpin(self) -> None:
+        if self._pinned:
+            self._unpin()
+
+    def on_owner_resize(self) -> None:
+        if self._transitioning:
+            return
+        old_pinned = self._pinned
+        self.recompute_threshold()
+        sb_value = self._owner._scroll_area.verticalScrollBar().value()
+        if old_pinned and sb_value < self._threshold - self.HYSTERESIS_PX:
+            self._unpin()
+        elif not old_pinned and sb_value >= self._threshold:
+            self._pin()
+
+    def _on_scroll(self, value: int) -> None:
+        if not self._pinned and value >= self._threshold:
+            self._pin()
+        elif self._pinned and value < self._threshold - self.HYSTERESIS_PX:
+            self._unpin()
+
+    def _pin(self) -> None:
+        nav = self._owner._file_navigator
+        self._transitioning = True
+        self._owner.setUpdatesEnabled(False)
+        try:
+            self._owner._flow_slot.layout().removeWidget(nav)
+            nav.setParent(None)
+            self._owner._pin_slot.layout().addWidget(nav)
+            self._owner._pin_slot.setVisible(True)
+            nav.set_mode(NavMode.PILL)
+            nav.show()
+        finally:
+            self._owner.setUpdatesEnabled(True)
+            self._transitioning = False
+        self._pinned = True
+
+    def _unpin(self) -> None:
+        nav = self._owner._file_navigator
+        self._transitioning = True
+        self._owner.setUpdatesEnabled(False)
+        try:
+            self._owner._pin_slot.layout().removeWidget(nav)
+            nav.setParent(None)
+            self._owner._flow_slot.layout().addWidget(nav)
+            self._owner._pin_slot.setVisible(False)
+            nav.set_mode(NavMode.LIST)
+            nav.show()
+        finally:
+            self._owner.setUpdatesEnabled(True)
+            self._transitioning = False
+        self._pinned = False
+
+
 class DiffWidget(QWidget):
     submodule_open_requested = Signal(str)  # emits the submodule path (relative)
     merge_abort_requested = Signal()
@@ -121,6 +194,10 @@ class DiffWidget(QWidget):
         # Re-point the lazy diff loader at the unified scroll area.
         self._loader = ViewportBlockLoader(self._scroll_area, self._realize_block)
 
+        # ── Sticky pin controller ────────────────────────────────────────────
+        self._sticky_controller = _StickyPinController(self)
+        self._sticky_controller.attach()
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 8, 12, 8)
         layout.setSpacing(8)
@@ -221,6 +298,11 @@ class DiffWidget(QWidget):
             return True  # block all mouse interaction on commit message
         return super().eventFilter(obj, event)
 
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if hasattr(self, "_sticky_controller"):
+            self._sticky_controller.on_owner_resize()
+
     def load_commit(self, oid: str) -> None:
         self._current_oid = oid
 
@@ -237,6 +319,7 @@ class DiffWidget(QWidget):
             self._diff_model.reload([])
             self._clear_blocks()
             self._set_empty_state(True)
+            self._sticky_controller.force_unpin()
             return
         self._set_empty_state(False)
         branches = self._queries.get_branches.execute()
@@ -258,6 +341,11 @@ class DiffWidget(QWidget):
         files = self._queries.get_commit_files.execute(oid)
         self._diff_model.reload(files)
         self._render_all_files(oid)
+
+        # Threshold depends on _msg_view height + flow_slot natural height,
+        # both of which have settled by now (synchronous).
+        self._sticky_controller.recompute_threshold()
+        self._sticky_controller.force_unpin()
 
     # ── Internal helpers ────────────────────────────────────────────────────
 
