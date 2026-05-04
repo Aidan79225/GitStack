@@ -101,6 +101,7 @@ class DiffWidget(QWidget):
         pin_slot_layout = QVBoxLayout(self._pin_slot)
         pin_slot_layout.setContentsMargins(0, 0, 0, 0)
         pin_slot_layout.setSpacing(0)
+        self._pin_slot.setVisible(False)
 
         self._scroll_content = QWidget()
         scroll_content_layout = QVBoxLayout(self._scroll_content)
