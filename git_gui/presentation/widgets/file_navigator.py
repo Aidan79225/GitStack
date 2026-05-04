@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from PySide6.QtCore import QItemSelectionModel, QModelIndex, Qt, Signal
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -138,6 +138,7 @@ class FileNavigatorWidget(QWidget):
                 continue
             btn = QPushButton(fs.path)
             btn.setIcon(_delta_dot_icon(fs.delta))
+            btn.setIconSize(QSize(10, 10))
             btn.setCheckable(True)
             btn.setChecked(False)
             btn.clicked.connect(lambda _checked=False, r=row: self._on_pill_clicked(r))
@@ -221,12 +222,40 @@ class FileNavigatorWidget(QWidget):
         primary = c.primary
         on_primary = c.on_primary
 
+        # Full state coverage so Qt's native Windows style fully yields to
+        # our QSS. Without :hover, :pressed, :focus, and outline:none the
+        # native style bleeds through and produces sharp-cornered gray
+        # rectangles instead of rounded MD3 pills.
         pill_qss = (
-            f"QPushButton {{ background: {bg}; color: {on_surface}; "
-            f"border: 1px solid {outline}; border-radius: 12px; "
-            f"padding: 2px 10px; }} "
-            f"QPushButton:checked {{ background: {primary}; color: {on_primary}; "
-            f"border-color: {primary}; }}"
+            f"QPushButton {{"
+            f"  background: {bg};"
+            f"  color: {on_surface};"
+            f"  border: 1px solid {outline};"
+            f"  border-radius: 12px;"
+            f"  padding: 4px 12px;"
+            f"  min-height: 16px;"
+            f"  outline: none;"
+            f"}}"
+            f"QPushButton:hover {{"
+            f"  border-color: {primary};"
+            f"}}"
+            f"QPushButton:pressed {{"
+            f"  background: {primary};"
+            f"  color: {on_primary};"
+            f"  border-color: {primary};"
+            f"}}"
+            f"QPushButton:checked {{"
+            f"  background: {primary};"
+            f"  color: {on_primary};"
+            f"  border-color: {primary};"
+            f"}}"
+            f"QPushButton:checked:hover {{"
+            f"  background: {primary};"
+            f"  border-color: {primary};"
+            f"}}"
+            f"QPushButton:focus {{"
+            f"  outline: none;"
+            f"}}"
         )
         self._all_pill.setStyleSheet(pill_qss)
         for btn in self._pill_buttons.values():

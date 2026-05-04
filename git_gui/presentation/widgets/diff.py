@@ -325,11 +325,15 @@ class DiffWidget(QWidget):
         self.update_state_banner("CLEAN")
 
     def eventFilter(self, obj, event):
+        # Block mouse selection / drag on the read-only commit message but
+        # let wheel events through so they propagate to the outer
+        # QScrollArea (the unified scroll). Without this, wheel-scrolling
+        # stalls whenever the cursor sits over the message text.
         if obj is self._msg_view.viewport() and event.type() in (
-            QEvent.Wheel, QEvent.MouseButtonPress,
+            QEvent.MouseButtonPress,
             QEvent.MouseButtonRelease, QEvent.MouseMove,
         ):
-            return True  # block all mouse interaction on commit message
+            return True
         return super().eventFilter(obj, event)
 
     def resizeEvent(self, event) -> None:
