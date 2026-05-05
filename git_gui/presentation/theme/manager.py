@@ -68,7 +68,8 @@ class ThemeManager(QObject):
             font.setFamily(body.family)
         if body.size > 0:
             import sys
-            size = body.size
+            scale = float(load_settings().get("typography_scale", 1.0))
+            size = max(1, round(body.size * scale))
             if sys.platform == "darwin":
                 from PySide6.QtGui import QFontDatabase
                 native_pt = QFontDatabase.systemFont(
@@ -77,7 +78,7 @@ class ThemeManager(QObject):
                 # Theme sizes are calibrated for Windows (~9 pt body).
                 # Scale up proportionally for macOS (~13 pt native body).
                 if native_pt > 0:
-                    size = round(body.size * native_pt / 9)
+                    size = round(size * native_pt / 9)
             font.setPointSize(size)
         if body.weight:
             font.setWeight(QFont.Weight(body.weight))
