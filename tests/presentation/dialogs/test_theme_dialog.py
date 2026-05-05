@@ -143,3 +143,30 @@ def test_reopen_dialog_prefills_from_saved_file(app, reset_theme, tmp_path, monk
     dlg2 = ThemeDialog()
     assert dlg2._working_colors["primary"] == "#123456"
     assert dlg2._typo_slider.value() == 120
+
+
+def test_base_theme_falls_back_to_dark_when_already_in_custom_mode(
+    app, reset_theme, tmp_path, monkeypatch
+):
+    """When the dialog opens with mode already 'custom', _base_theme must be
+    the Dark builtin (not the loaded custom theme). The saved custom file
+    stores typography sizes scaled relative to Dark, so the slider recovery
+    in _maybe_load_existing_custom_theme would compute the wrong ratio if
+    _base_theme matched the loaded custom theme."""
+    from git_gui.presentation.theme import settings as s
+    from git_gui.presentation.theme.loader import load_builtin
+    monkeypatch.setattr(s, "custom_theme_path", lambda: tmp_path / "custom_theme.json")
+
+    # Save a custom theme with a non-default typography scale.
+    dlg1 = ThemeDialog()
+    _radios(dlg1)["custom"].setChecked(True)
+    dlg1._typo_slider.setValue(150)
+    dlg1._on_apply()
+    assert get_theme_manager().mode == "custom"
+
+    # Re-open with mode already "custom".
+    dlg2 = ThemeDialog()
+    assert dlg2._base_theme.name == load_builtin("dark").name
+    # And confirm the slider correctly recovered the saved 150% scale,
+    # which would not happen if _base_theme were the (already-scaled) custom theme.
+    assert dlg2._typo_slider.value() == 150
