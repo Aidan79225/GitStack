@@ -44,7 +44,9 @@ class ThemeManager(QObject):
         if mode == self._mode and not force:
             return
         self._mode = mode
-        save_settings({"theme_mode": mode})
+        data = load_settings()
+        data["theme_mode"] = mode
+        save_settings(data)
         self._refresh(force=force)
 
     def _refresh(self, force: bool = False) -> None:

@@ -119,8 +119,14 @@ def test_custom_panel_prefills_from_active_theme(app, reset_theme):
     assert dlg._working_colors["on_surface_variant"] == light_colors.on_surface_variant
 
 
-def test_typography_scale_applied_on_save(app, reset_theme, tmp_path, monkeypatch):
+def test_typography_scale_persists_to_settings(
+    app, reset_theme, tmp_path, monkeypatch
+):
+    """The slider value is saved to settings.typography_scale on Apply.
+    The custom_theme.json keeps Dark's un-scaled typography — the runtime
+    scale is the single source of truth across all modes."""
     from git_gui.presentation.theme import settings as s
+    monkeypatch.setattr(s, "settings_path", lambda: tmp_path / "settings.json")
     monkeypatch.setattr(s, "custom_theme_path", lambda: tmp_path / "custom_theme.json")
 
     dlg = ThemeDialog()
@@ -128,15 +134,18 @@ def test_typography_scale_applied_on_save(app, reset_theme, tmp_path, monkeypatc
     dlg._typo_slider.setValue(150)
     dlg._on_apply()
 
+    assert s.load_settings()["typography_scale"] == 1.5
+
     import json
     payload = json.loads((tmp_path / "custom_theme.json").read_text())
     from git_gui.presentation.theme.loader import load_builtin
     dark_body = load_builtin("dark").typography.body_medium.size
-    assert payload["typography"]["body_medium"]["size"] == round(dark_body * 1.5)
+    assert payload["typography"]["body_medium"]["size"] == dark_body
 
 
 def test_reopen_dialog_prefills_from_saved_file(app, reset_theme, tmp_path, monkeypatch):
     from git_gui.presentation.theme import settings as s
+    monkeypatch.setattr(s, "settings_path", lambda: tmp_path / "settings.json")
     monkeypatch.setattr(s, "custom_theme_path", lambda: tmp_path / "custom_theme.json")
 
     dlg1 = ThemeDialog()
@@ -159,6 +168,7 @@ def test_typography_base_is_always_dark_for_round_trip(
     must always be Dark regardless of which radio is selected."""
     from git_gui.presentation.theme import settings as s
     from git_gui.presentation.theme.loader import load_builtin
+    monkeypatch.setattr(s, "settings_path", lambda: tmp_path / "settings.json")
     monkeypatch.setattr(s, "custom_theme_path", lambda: tmp_path / "custom_theme.json")
 
     dlg1 = ThemeDialog()

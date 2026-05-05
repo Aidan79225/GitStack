@@ -194,8 +194,11 @@ class ThemeDialog(QDialog):
         self._typo_slider.setPageStep(_TYPOGRAPHY_SCALE_STEP)
         self._typo_slider.setTickInterval(_TYPOGRAPHY_SCALE_STEP)
         self._typo_slider.setTickPosition(QSlider.TicksBelow)
-        self._typo_slider.setValue(_TYPOGRAPHY_SCALE_DEFAULT)
-        self._typo_label = QLabel(f"{_TYPOGRAPHY_SCALE_DEFAULT}%")
+        saved_scale = float(_settings.load_settings().get("typography_scale", 1.0))
+        initial_value = round(saved_scale * 100 / _TYPOGRAPHY_SCALE_STEP) * _TYPOGRAPHY_SCALE_STEP
+        initial_value = max(_TYPOGRAPHY_SCALE_MIN, min(_TYPOGRAPHY_SCALE_MAX, initial_value))
+        self._typo_slider.setValue(initial_value)
+        self._typo_label = QLabel(f"{initial_value}%")
 
         def _snap_typo(v: int) -> None:
             snapped = round(v / _TYPOGRAPHY_SCALE_STEP) * _TYPOGRAPHY_SCALE_STEP
@@ -266,9 +269,6 @@ class ThemeDialog(QDialog):
             for token in tokens:
                 self._working_colors[token] = getattr(c, token)
         self._working_lane_colors = list(c.graph_lane_colors)
-        if hasattr(self, "_typo_slider"):
-            self._typo_slider.setValue(_TYPOGRAPHY_SCALE_DEFAULT)
-            self._typo_label.setText(f"{_TYPOGRAPHY_SCALE_DEFAULT}%")
 
     def _apply_swatch_color(self, token: str, hex_value: str) -> None:
         btn = self._swatch_buttons[token]
@@ -321,11 +321,22 @@ class ThemeDialog(QDialog):
 
     def _on_apply(self) -> None:
         mode = self._selected_mode()
+        self._save_typography_scale()
         if mode == "custom":
             self._write_custom_theme()
-        self._mgr.set_mode(mode, force=(mode == "custom"))
+        # force=True so _apply runs and picks up the new typography_scale
+        # even if the mode itself didn't change.
+        self._mgr.set_mode(mode, force=True)
         self._save_avatar_setting()
         self.accept()
+
+    def _save_typography_scale(self) -> None:
+        scale = self._typo_slider.value() / 100.0
+        data = _settings.load_settings()
+        if data.get("typography_scale") == scale:
+            return
+        data["typography_scale"] = scale
+        _settings.save_settings(data)
 
     def _save_avatar_setting(self) -> None:
         enabled = self._gravatar_checkbox.isChecked()
@@ -352,22 +363,9 @@ class ThemeDialog(QDialog):
         import json
         import dataclasses
         from git_gui.presentation.theme import settings as _settings
-        from git_gui.presentation.theme.tokens import (
-            Colors, Theme, Typography, TextStyle,
-        )
+        from git_gui.presentation.theme.tokens import Colors, Theme
 
-        scale = self._typo_slider.value() / 100.0
         base = self._base_theme
-
-        scaled_styles = {}
-        for field in dataclasses.fields(Typography):
-            base_style: TextStyle = getattr(self._typography_base.typography, field.name)
-            scaled_styles[field.name] = TextStyle(
-                family=base_style.family,
-                size=max(1, round(base_style.size * scale)),
-                weight=base_style.weight,
-                letter_spacing=base_style.letter_spacing,
-            )
 
         colors_kwargs = dict(dataclasses.asdict(base.colors))
         for token, hex_value in self._working_colors.items():
@@ -378,7 +376,7 @@ class ThemeDialog(QDialog):
             name="Custom",
             is_dark=base.is_dark,
             colors=Colors(**colors_kwargs),
-            typography=Typography(**scaled_styles),
+            typography=self._typography_base.typography,
             shape=base.shape,
             spacing=base.spacing,
         )
@@ -409,13 +407,6 @@ class ThemeDialog(QDialog):
             if i < len(self._lane_buttons):
                 self._apply_lane_swatch_color(i, hex_value)
 
-        base_size = self._typography_base.typography.body_medium.size
-        if base_size > 0:
-            ratio = theme.typography.body_medium.size / base_size
-            slider_value = round(ratio * 100 / _TYPOGRAPHY_SCALE_STEP) * _TYPOGRAPHY_SCALE_STEP
-            slider_value = max(_TYPOGRAPHY_SCALE_MIN, min(_TYPOGRAPHY_SCALE_MAX, slider_value))
-            self._typo_slider.setValue(slider_value)
-            self._typo_label.setText(f"{slider_value}%")
 
 
 def _theme_to_json(theme) -> dict:
