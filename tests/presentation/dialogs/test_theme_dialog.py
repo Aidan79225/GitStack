@@ -60,10 +60,15 @@ def test_cancel_does_not_change_mode(app, reset_theme):
     assert mgr.mode == "dark"
 
 
-def test_custom_panel_disabled_when_mode_is_dark(app, reset_theme):
+def test_swatch_click_outside_custom_mode_is_noop(app, reset_theme):
+    """The Custom panel stays enabled in all modes (so QToolBox sections are
+    navigable), but clicking a swatch in non-Custom mode is silently
+    ignored — _working_colors does not change."""
     get_theme_manager().set_mode("dark")
     dlg = ThemeDialog()
-    assert not dlg._custom_panel.isEnabled()
+    original = dlg._working_colors["primary"]
+    dlg._open_picker("primary")
+    assert dlg._working_colors["primary"] == original
 
 
 def test_custom_panel_enables_when_custom_radio_clicked(app, reset_theme):
@@ -185,3 +190,19 @@ def test_radio_toggle_refreshes_custom_panel(app, reset_theme):
 
     _radios(dlg)["dark"].setChecked(True)
     assert dlg._working_colors["surface"] == dark_surface
+
+
+def test_custom_panel_remains_navigable_outside_custom_mode(app, reset_theme):
+    """In Light/Dark/System mode the QToolBox section headers must still be
+    clickable so the user can browse all swatches; only individual swatch
+    clicks are no-ops."""
+    mgr = get_theme_manager()
+    mgr.set_mode("light")
+    dlg = ThemeDialog()
+    assert dlg._custom_panel.isEnabled()
+    assert dlg._toolbox.isEnabled()
+    # Swatch clicks in non-custom mode must not change _working_colors,
+    # and must not pop a modal QColorDialog (which would hang the test).
+    original = dlg._working_colors["primary"]
+    dlg._open_picker("primary")
+    assert dlg._working_colors["primary"] == original

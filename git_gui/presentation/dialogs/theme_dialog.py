@@ -146,7 +146,6 @@ class ThemeDialog(QDialog):
 
         # --- Custom panel ---
         self._custom_panel = self._build_custom_panel()
-        self._custom_panel.setEnabled(self._selected_mode() == "custom")
         layout.addWidget(self._custom_panel)
 
         layout.addStretch()
@@ -170,7 +169,6 @@ class ThemeDialog(QDialog):
 
     def _on_mode_radio_toggled(self, _checked: bool) -> None:
         mode = self._selected_mode()
-        self._custom_panel.setEnabled(mode == "custom")
         if mode == self._base_theme_mode or mode == "custom":
             return
         self._base_theme_mode = mode
@@ -290,6 +288,8 @@ class ThemeDialog(QDialog):
         )
 
     def _open_picker(self, token: str) -> None:
+        if self._selected_mode() != "custom":
+            return
         from PySide6.QtWidgets import QColorDialog
         current = self._working_colors[token]
         initial = _qcolor_for_hex(current)
@@ -306,6 +306,8 @@ class ThemeDialog(QDialog):
             self._apply_swatch_color(token, new_hex)
 
     def _open_lane_picker(self, idx: int) -> None:
+        if self._selected_mode() != "custom":
+            return
         from PySide6.QtWidgets import QColorDialog
         current = self._working_lane_colors[idx]
         initial = _qcolor_for_hex(current)
