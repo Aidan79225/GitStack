@@ -83,7 +83,7 @@ class FileNavigatorWidget(QWidget):
         self._stack.setContentsMargins(0, 0, 0, 0)
 
         # ── List mode ────────────────────────────────────────────────────────
-        self._list_view = FileListView()
+        self._list_view = FileListView(max_visible_rows=8)
         self._list_view.setEditTriggers(QListView.NoEditTriggers)
         self._list_view.setModel(model)
         self._list_view.setItemDelegate(FileDeltaDelegate(self._list_view))
@@ -118,6 +118,11 @@ class FileNavigatorWidget(QWidget):
         self._pill_buttons: dict[str, QToolButton] = {}
         self._build_pills()
         model.modelReset.connect(self._build_pills)
+        # FileListView's updateGeometry only bubbles up through the
+        # QStackedLayout, not up to the navigator's parent layout. Without
+        # this, the parent slot keeps the empty-model height (~32px) even
+        # after files are loaded.
+        model.modelReset.connect(self.updateGeometry)
 
         # Sync pill check state from selection model changes (so list-view
         # clicks update pill highlight too).
