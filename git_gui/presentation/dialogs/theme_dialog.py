@@ -190,13 +190,18 @@ class ThemeDialog(QDialog):
         typo_row.addWidget(self._typo_label)
         outer.addLayout(typo_row)
 
-        # --- Working colour state, prefilled from dark ---
-        self._dark_defaults = load_builtin("dark")
+        # --- Working colour state, prefilled from the currently-active theme ---
+        # When custom is already active use the dark builtin as the canonical
+        # base so typography-scale round-trips remain stable.
+        if self._mgr.mode == "custom":
+            self._base_theme = load_builtin("dark")
+        else:
+            self._base_theme = self._mgr.current
         self._working_colors: dict[str, str] = {}
         self._working_lane_colors: list[str] = []
         self._swatch_buttons: dict[str, QPushButton] = {}
         self._lane_buttons: list[QPushButton] = []
-        self._reset_to_dark_defaults_state()
+        self._reset_to_base_state()
 
         # --- Accordion (QToolBox) ---
         self._toolbox = QToolBox()
@@ -240,8 +245,8 @@ class ThemeDialog(QDialog):
         outer.addWidget(self._toolbox, 1)
         return panel
 
-    def _reset_to_dark_defaults_state(self) -> None:
-        c = self._dark_defaults.colors
+    def _reset_to_base_state(self) -> None:
+        c = self._base_theme.colors
         self._working_colors = {}
         for _, tokens in _GROUPS:
             for token in tokens:
@@ -319,7 +324,7 @@ class ThemeDialog(QDialog):
     def _on_reset(self) -> None:
         if self._selected_mode() != "custom":
             return
-        self._reset_to_dark_defaults_state()
+        self._reset_to_base_state()
         for token, hex_value in self._working_colors.items():
             self._apply_swatch_color(token, hex_value)
         for i, hex_value in enumerate(self._working_lane_colors):
@@ -334,30 +339,30 @@ class ThemeDialog(QDialog):
         )
 
         scale = self._typo_slider.value() / 100.0
-        dark = self._dark_defaults
+        base = self._base_theme
 
         scaled_styles = {}
         for field in dataclasses.fields(Typography):
-            base: TextStyle = getattr(dark.typography, field.name)
+            base_style: TextStyle = getattr(base.typography, field.name)
             scaled_styles[field.name] = TextStyle(
-                family=base.family,
-                size=max(1, round(base.size * scale)),
-                weight=base.weight,
-                letter_spacing=base.letter_spacing,
+                family=base_style.family,
+                size=max(1, round(base_style.size * scale)),
+                weight=base_style.weight,
+                letter_spacing=base_style.letter_spacing,
             )
 
-        colors_kwargs = dict(dataclasses.asdict(dark.colors))
+        colors_kwargs = dict(dataclasses.asdict(base.colors))
         for token, hex_value in self._working_colors.items():
             colors_kwargs[token] = hex_value
         colors_kwargs["graph_lane_colors"] = list(self._working_lane_colors)
 
         custom_theme = Theme(
             name="Custom",
-            is_dark=dark.is_dark,
+            is_dark=base.is_dark,
             colors=Colors(**colors_kwargs),
             typography=Typography(**scaled_styles),
-            shape=dark.shape,
-            spacing=dark.spacing,
+            shape=base.shape,
+            spacing=base.spacing,
         )
 
         path = _settings.custom_theme_path()
@@ -386,9 +391,9 @@ class ThemeDialog(QDialog):
             if i < len(self._lane_buttons):
                 self._apply_lane_swatch_color(i, hex_value)
 
-        dark_size = self._dark_defaults.typography.body_medium.size
-        if dark_size > 0:
-            ratio = theme.typography.body_medium.size / dark_size
+        base_size = self._base_theme.typography.body_medium.size
+        if base_size > 0:
+            ratio = theme.typography.body_medium.size / base_size
             slider_value = round(ratio * 100 / _TYPOGRAPHY_SCALE_STEP) * _TYPOGRAPHY_SCALE_STEP
             slider_value = max(_TYPOGRAPHY_SCALE_MIN, min(_TYPOGRAPHY_SCALE_MAX, slider_value))
             self._typo_slider.setValue(slider_value)

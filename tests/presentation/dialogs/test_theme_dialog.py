@@ -89,15 +89,29 @@ def test_apply_custom_writes_file_and_sets_mode(app, reset_theme, tmp_path, monk
     assert payload["colors"]["primary"] == "#abcdef"
 
 
-def test_reset_restores_dark_defaults(app, reset_theme):
+def test_reset_restores_active_theme_values(app, reset_theme):
+    mgr = get_theme_manager()
+    mgr.set_mode("light")
     dlg = ThemeDialog()
     _radios(dlg)["custom"].setChecked(True)
     dlg._working_colors["primary"] = "#abcdef"
     dlg._apply_swatch_color("primary", "#abcdef")
     dlg._on_reset()
     from git_gui.presentation.theme.loader import load_builtin
-    expected = load_builtin("dark").colors.primary
+    expected = load_builtin("light").colors.primary
     assert dlg._working_colors["primary"] == expected
+
+
+def test_custom_panel_prefills_from_active_theme(app, reset_theme):
+    mgr = get_theme_manager()
+    mgr.set_mode("light")
+    dlg = ThemeDialog()
+    _radios(dlg)["custom"].setChecked(True)
+    from git_gui.presentation.theme.loader import load_builtin
+    light_colors = load_builtin("light").colors
+    assert dlg._working_colors["surface"] == light_colors.surface
+    assert dlg._working_colors["on_surface"] == light_colors.on_surface
+    assert dlg._working_colors["on_surface_variant"] == light_colors.on_surface_variant
 
 
 def test_typography_scale_applied_on_save(app, reset_theme, tmp_path, monkeypatch):
