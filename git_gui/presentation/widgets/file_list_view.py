@@ -15,9 +15,54 @@ class FileListView(QListView):
        the row selection (so the blue highlight on another row is preserved).
     2. Clicking an already-selected row deselects it and emits ``deselected``,
        without delegating to ``super()`` so Qt cannot re-select.
+
+    Optional ``max_visible_rows`` enables content-driven sizing: ``sizeHint``
+    grows to fit the actual row count up to the cap, after which the internal
+    scrollbar takes over. Default ``None`` preserves QListView's stock hint
+    (used by working_tree.py, where a QSplitter controls the height).
     """
 
     deselected = Signal()
+
+    def __init__(self, parent=None, *, max_visible_rows: int | None = None) -> None:
+        super().__init__(parent)
+        self._max_visible_rows = max_visible_rows
+        if max_visible_rows is not None:
+            # The horizontal scrollbar otherwise steals one row's worth of
+            # vertical space (~22px), so an 8-row cap renders only 7. Long
+            # file paths clip at the right edge.
+            self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+    def setModel(self, model) -> None:
+        super().setModel(model)
+        if self._max_visible_rows is not None and model is not None:
+            model.modelReset.connect(self.updateGeometry)
+            model.rowsInserted.connect(lambda *_: self.updateGeometry())
+            model.rowsRemoved.connect(lambda *_: self.updateGeometry())
+
+    def _row_height(self) -> int:
+        if self.model() is not None and self.model().rowCount() > 0:
+            h = self.sizeHintForRow(0)
+            if h > 0:
+                return h
+        return BADGE_SIZE + 8
+
+    def sizeHint(self) -> QSize:
+        if self._max_visible_rows is None:
+            return super().sizeHint()
+        rows = self.model().rowCount() if self.model() is not None else 0
+        visible = min(rows, self._max_visible_rows) if rows > 0 else 1
+        height = visible * self._row_height() + 2 * self.frameWidth()
+        return QSize(super().sizeHint().width(), height)
+
+    def minimumSizeHint(self) -> QSize:
+        if self._max_visible_rows is None:
+            return super().minimumSizeHint()
+        # Match sizeHint so QScrollArea (setWidgetResizable=True) and parent
+        # QVBoxLayouts don't shrink the navigator below its preferred height.
+        # QScrollArea sizes its widget via viewport.expandedTo(minimumSizeHint),
+        # so a smaller minimum lets parents collapse the row count.
+        return self.sizeHint()
 
     def _checkbox_rect(self, index):
         """Return the QRect of the check indicator for *index*, or None."""
