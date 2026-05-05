@@ -103,14 +103,20 @@ class ThemeManager(QObject):
                 w.viewport().update()
             w.update()
 
-    def _resolve_theme(self) -> Theme:
-        if self._mode == "light":
+    def theme_for_mode(self, mode: str) -> Theme:
+        """Resolve a mode name to a Theme without changing the active mode."""
+        if mode not in _VALID_MODES:
+            raise ValueError(f"Invalid theme mode: {mode}")
+        if mode == "light":
             return load_builtin("light")
-        if self._mode == "dark":
+        if mode == "dark":
             return load_builtin("dark")
-        if self._mode == "custom":
+        if mode == "custom":
             return self._load_custom_or_fallback()
         return self._system_theme()
+
+    def _resolve_theme(self) -> Theme:
+        return self.theme_for_mode(self._mode)
 
     def _load_custom_or_fallback(self) -> Theme:
         from . import settings as _settings
