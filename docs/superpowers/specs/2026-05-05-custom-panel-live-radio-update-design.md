@@ -118,8 +118,7 @@ the comparison has something to compare against on the first call.
 - **In-progress edits lost on non-custom radio toggle.** Acceptable
   for the inspection use case. If the user wanted to preserve edits
   across radio toggles, they'd have used Apply first. We won't add a
-  confirm
-  dialog or per-mode working state.
+  confirm dialog or per-mode working state.
 
 - **System mode color-scheme change while the dialog is open.** If the
   OS dark/light setting flips while the user is sitting on the System
