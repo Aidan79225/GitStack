@@ -111,3 +111,21 @@ def test_palette_follows_theme(app, isolated_settings):
     from git_gui.presentation.theme.loader import load_builtin
     expected = load_builtin("light").colors.primary
     assert pal_light.color(QPalette.Highlight).name() == expected
+
+
+def test_typography_scale_applies_to_app_font(app, isolated_settings):
+    """When typography_scale is set, _apply scales body_medium.size before
+    setting the QApplication font. Verifies the setting actually drives
+    text size, not just sits in JSON."""
+    import sys
+    from git_gui.presentation.theme import settings as s
+    from git_gui.presentation.theme.loader import load_builtin
+    s.save_settings({"theme_mode": "light", "typography_scale": 1.5})
+    mgr = ThemeManager(app)
+    body = load_builtin("light").typography.body_medium
+    expected_pt = max(1, round(body.size * 1.5))
+    if sys.platform != "darwin":
+        assert app.font().pointSize() == expected_pt
+    else:
+        unscaled = max(1, round(body.size * 1.0))
+        assert app.font().pointSize() > unscaled

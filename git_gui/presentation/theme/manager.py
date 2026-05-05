@@ -44,7 +44,9 @@ class ThemeManager(QObject):
         if mode == self._mode and not force:
             return
         self._mode = mode
-        save_settings({"theme_mode": mode})
+        data = load_settings()
+        data["theme_mode"] = mode
+        save_settings(data)
         self._refresh(force=force)
 
     def _refresh(self, force: bool = False) -> None:
@@ -68,7 +70,8 @@ class ThemeManager(QObject):
             font.setFamily(body.family)
         if body.size > 0:
             import sys
-            size = body.size
+            scale = float(load_settings().get("typography_scale", 1.0))
+            size = max(1, round(body.size * scale))
             if sys.platform == "darwin":
                 from PySide6.QtGui import QFontDatabase
                 native_pt = QFontDatabase.systemFont(
@@ -77,7 +80,7 @@ class ThemeManager(QObject):
                 # Theme sizes are calibrated for Windows (~9 pt body).
                 # Scale up proportionally for macOS (~13 pt native body).
                 if native_pt > 0:
-                    size = round(body.size * native_pt / 9)
+                    size = round(size * native_pt / 9)
             font.setPointSize(size)
         if body.weight:
             font.setWeight(QFont.Weight(body.weight))
@@ -103,14 +106,20 @@ class ThemeManager(QObject):
                 w.viewport().update()
             w.update()
 
-    def _resolve_theme(self) -> Theme:
-        if self._mode == "light":
+    def theme_for_mode(self, mode: str) -> Theme:
+        """Resolve a mode name to a Theme without changing the active mode."""
+        if mode not in _VALID_MODES:
+            raise ValueError(f"Invalid theme mode: {mode}")
+        if mode == "light":
             return load_builtin("light")
-        if self._mode == "dark":
+        if mode == "dark":
             return load_builtin("dark")
-        if self._mode == "custom":
+        if mode == "custom":
             return self._load_custom_or_fallback()
         return self._system_theme()
+
+    def _resolve_theme(self) -> Theme:
+        return self.theme_for_mode(self._mode)
 
     def _load_custom_or_fallback(self) -> Theme:
         from . import settings as _settings
