@@ -104,9 +104,21 @@ the comparison has something to compare against on the first call.
   Dark" guard is removed because `_typography_base` now handles the
   round-trip concern independently of which radio is selected.
 
-- **In-progress edits lost on radio toggle.** Acceptable for the
-  inspection use case. If the user wanted to preserve edits across
-  radio toggles, they'd have used Apply first. We won't add a confirm
+- **Custom radio doesn't re-seed.** The toggle handler short-circuits
+  when `mode == "custom"`, so clicking the Custom radio leaves the
+  swatches at whatever theme was last shown (Light, Dark, or System).
+  Rationale: a user clicking Custom is opting into editing, and the
+  most useful starting point is the theme they were just inspecting
+  (the one whose values are visible right now). Yanking them to the
+  saved custom file or to Dark would discard the inspection context.
+  When the dialog first opens with mode already custom,
+  `_maybe_load_existing_custom_theme` still loads the saved file —
+  this short-circuit only affects mid-dialog radio toggles.
+
+- **In-progress edits lost on non-custom radio toggle.** Acceptable
+  for the inspection use case. If the user wanted to preserve edits
+  across radio toggles, they'd have used Apply first. We won't add a
+  confirm
   dialog or per-mode working state.
 
 - **System mode color-scheme change while the dialog is open.** If the
