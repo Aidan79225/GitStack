@@ -36,7 +36,7 @@ def _map_statuses(flags: int) -> list[tuple[str, str]]:
 
 
 def _commit_to_entity(c: pygit2.Commit) -> Commit:
-    ts = datetime.fromtimestamp(c.commit_time, tz=timezone.utc)
+    ts = datetime.fromtimestamp(c.commit_time, tz=timezone.utc).astimezone()
     return Commit(
         oid=str(c.id),
         message=c.message.strip(),
