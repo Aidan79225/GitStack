@@ -55,7 +55,7 @@ A clean, focused desktop Git client built with Python and PySide6 (Qt) for every
 - Tag refs shown in the sidebar and on the graph
 
 ### Stash
-- One-click stash from the toolbar with confirmation
+- One-click stash — a Stash button appears in the commit graph header when you have uncommitted changes; confirms before stashing.
 - View stash contents (file list + diff) by clicking a stash in the sidebar
 - Pop, apply, or drop stashes via context menu
 
@@ -63,7 +63,7 @@ A clean, focused desktop Git client built with Python and PySide6 (Qt) for every
 - Push, pull, fetch, and fetch-all-prune from the toolbar
 - Fetch from a specific remote via sidebar context menu
 - **Delete a remote branch** via sidebar context menu (`git push <remote> --delete <branch>`) with confirmation
-- **Force push dialog** — when a push is rejected (non-fast-forward), offers to force push with `--force-with-lease`
+- **Force push prompt** — when a push is rejected (non-fast-forward), a confirmation message box offers to force push with `--force-with-lease`
 - **`Git → Remotes...`** dialog: list, add, edit (rename / change URL), and remove remotes
 - All remote operations run in background threads with status bar indicator
 
@@ -81,8 +81,9 @@ A clean, focused desktop Git client built with Python and PySide6 (Qt) for every
 - Persistent state in `~/.gitcrisp/repos.json`
 
 ### Theming
-- Light and dark themes selectable from **`View → Appearance...`**
-- Custom typography scale (snaps to 10% steps) for the entire UI
+- Light and dark themes selectable from **`View → Appearance...`** — Light uses a softer primary-tinted surface palette; Dark stays on the deeper Material 3 baseline.
+- **Inspection mode** — open the Theme dialog and click the Custom radio in any mode to expand each section (Brand, Surface, Diff, etc.) and read every token's hex code. Individual swatch clicks are no-ops outside Custom; toggling the radio between Light / Dark / System refreshes the swatches live.
+- **Custom typography scale** (snaps to 10% steps) — drag the slider in any mode, click Apply, and the new scale persists across restarts via `settings.typography_scale`. Works in System / Light / Dark / Custom.
 - Live preview, no restart needed
 
 ### Insights
@@ -136,6 +137,7 @@ git_gui/
 │   ├── commit_ops_cli.py  # `git cherry-pick` / `git revert` subprocess wrapper
 │   ├── submodule_cli.py   # `git submodule` subprocess wrapper
 │   ├── repo_store.py      # JSON-based repository persistence
+│   ├── remote_tag_cache.py  # Remote tag SHA→name cache
 │   └── git_clone.py       # Clone helper (recursive)
 │
 └── presentation/     # Qt UI layer
@@ -143,8 +145,8 @@ git_gui/
     ├── bus.py                # Command / Query bus (DI containers)
     ├── menus/                # Menubar installers (View, Git)
     ├── dialogs/              # Branches, Remotes, Submodules, Theme,
-    │                         #   Insight, Clone, CreateTag, Merge,
-    │                         #   InteractiveRebase
+    │                         #   Merge, InteractiveRebase, Reset
+    │                         #   (Insight, Clone, CreateTag live in widgets/)
     ├── theme/                # Theme manager + tokens
     ├── models/               # QAbstractTableModel / QAbstractListModel
     └── widgets/              # Graph, Sidebar, Diff, WorkingTree, LogPanel, ...
