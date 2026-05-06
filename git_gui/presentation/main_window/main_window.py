@@ -19,6 +19,7 @@ from git_gui.presentation.menus.appearance import install_appearance_menu
 from git_gui.presentation.menus.git_menu import install_git_menu
 from git_gui.presentation.main_window.branch_flows import BranchFlowsMixin
 from git_gui.presentation.main_window.cherry_pick_revert_flows import CherryPickRevertFlowsMixin
+from git_gui.presentation.main_window.commit_flows import CommitFlowsMixin
 from git_gui.presentation.main_window.merge_rebase_flows import MergeRebaseFlowsMixin
 from git_gui.presentation.main_window.reload_coordinator import ReloadCoordinatorMixin
 from git_gui.presentation.main_window.remote_op_queue import RemoteOpQueueMixin
@@ -29,7 +30,7 @@ from git_gui.presentation.main_window.stash_flows import StashFlowsMixin
 from git_gui.presentation.main_window.tag_flows import TagFlowsMixin
 
 
-class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlowMixin, StashFlowsMixin, BranchFlowsMixin, CherryPickRevertFlowsMixin, TagFlowsMixin, MergeRebaseFlowsMixin, RemoteOpQueueMixin, RepoLifecycleMixin):
+class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlowMixin, StashFlowsMixin, BranchFlowsMixin, CherryPickRevertFlowsMixin, TagFlowsMixin, MergeRebaseFlowsMixin, CommitFlowsMixin, RemoteOpQueueMixin, RepoLifecycleMixin):
     def __init__(self, queries: QueryBus | None, commands: CommandBus | None,
                  repo_store: IRepoStore, remote_tag_cache=None, repo_path: str | None = None, parent=None,
                  *, session_factory: Callable[[str], tuple[QueryBus, CommandBus]]) -> None:
@@ -54,6 +55,7 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlow
         self._wire_cherry_pick_revert_flow_signals()
         self._wire_tag_flow_signals()
         self._wire_merge_rebase_flow_signals()
+        self._wire_commit_flow_signals()
         self._wire_remote_op_signals()
         self._wire_repo_lifecycle_signals()
 

@@ -1,7 +1,7 @@
 # git_gui/presentation/widgets/commit_detail.py
 from __future__ import annotations
-from PySide6.QtCore import QRect, Qt
-from PySide6.QtGui import QBrush, QColor, QPainter
+from PySide6.QtCore import QRect, Qt, Signal
+from PySide6.QtGui import QBrush, QColor, QFont, QPainter
 from PySide6.QtWidgets import QWidget
 from git_gui.domain.entities import Commit
 from git_gui.presentation.theme import get_theme_manager, connect_widget
@@ -22,11 +22,15 @@ AVATAR_GAP = 10
 
 
 class CommitDetailWidget(QWidget):
+    commit_oid_copy_requested = Signal(str)  # full 40-char OID
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._commit: Commit | None = None
         self._refs: list[str] = []
         self._avatar_hash: str | None = None
+        self._oid_rect: QRect | None = None
+        self.setMouseTracking(True)
         connect_widget(self)
         self._avatar_loader = get_avatar_loader()
         self._avatar_loader.avatar_ready.connect(self._on_avatar_ready)
@@ -46,6 +50,7 @@ class CommitDetailWidget(QWidget):
         self._commit = None
         self._refs = []
         self._avatar_hash = None
+        self._oid_rect = None
         self.update()
 
     def _on_avatar_ready(self, email_hash: str) -> None:
@@ -89,9 +94,17 @@ class CommitDetailWidget(QWidget):
         painter.setPen(_muted())
         painter.drawText(text_left, y + fm.ascent(), "Commit: ")
         x = text_left + fm.horizontalAdvance("Commit: ")
+        oid_font = QFont(painter.font())
+        oid_font.setUnderline(True)
+        painter.setFont(oid_font)
         painter.setPen(on_surface)
         painter.drawText(x, y + fm.ascent(), c.oid)
-        x += fm.horizontalAdvance(c.oid) + BADGE_GAP * 2
+        oid_w = fm.horizontalAdvance(c.oid)
+        self._oid_rect = QRect(x, y, oid_w, line_h)
+        # Restore the default font for whatever follows on this line.
+        oid_font.setUnderline(False)
+        painter.setFont(oid_font)
+        x += oid_w + BADGE_GAP * 2
 
         badge_h = line_h + BADGE_V_PAD * 2
         cy = y + line_h // 2
@@ -116,3 +129,26 @@ class CommitDetailWidget(QWidget):
         painter.drawText(x, y + fm.ascent(), parents_text)
 
         painter.end()
+
+    def mouseMoveEvent(self, event) -> None:
+        pos = event.position().toPoint()
+        if self._oid_rect is not None and self._oid_rect.contains(pos):
+            self.setCursor(Qt.PointingHandCursor)
+        else:
+            self.setCursor(Qt.ArrowCursor)
+        super().mouseMoveEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        self.setCursor(Qt.ArrowCursor)
+        super().leaveEvent(event)
+
+    def mousePressEvent(self, event) -> None:
+        pos = event.position().toPoint()
+        if (event.button() == Qt.LeftButton
+                and self._oid_rect is not None
+                and self._oid_rect.contains(pos)
+                and self._commit is not None):
+            self.commit_oid_copy_requested.emit(self._commit.oid)
+            event.accept()
+            return
+        super().mousePressEvent(event)
