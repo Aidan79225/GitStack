@@ -179,6 +179,7 @@ class GraphWidget(QWidget):
     checkout_commit_requested = Signal(str)      # oid
     checkout_branch_requested = Signal(str)      # branch name (local or remote)
     delete_branch_requested = Signal(str)        # local branch name
+    remote_branch_delete_requested = Signal(str, str)  # (remote, branch)
     merge_branch_requested = Signal(str)             # branch name (merge into current)
     merge_commit_requested = Signal(str)             # oid (merge commit into current)
     rebase_onto_branch_requested = Signal(str)       # branch name (rebase current onto)
@@ -636,9 +637,32 @@ class GraphWidget(QWidget):
                     sub.addAction(name).triggered.connect(
                         lambda _checked=False, n=name: self.delete_branch_requested.emit(n))
 
+        remote_branches = [n for n in real_branches if n not in local_set]
+        if remote_branches:
+            if len(remote_branches) == 1:
+                name = remote_branches[0]
+                menu.addAction(f"Delete remote branch: {name}").triggered.connect(
+                    lambda: self._emit_remote_delete(name))
+            else:
+                sub = menu.addMenu("Delete remote branch")
+                for name in remote_branches:
+                    sub.addAction(name).triggered.connect(
+                        lambda _checked=False, n=name: self._emit_remote_delete(n))
+
         self._add_merge_rebase_section(menu, oid, real_branches)
 
         menu.exec(self._view.viewport().mapToGlobal(pos))
+
+    def _emit_remote_delete(self, name: str) -> None:
+        """Split a qualified remote-branch name (e.g. 'origin/feature/foo')
+        on the first slash and emit (remote, branch). Defensively bail if
+        the input is malformed."""
+        if "/" not in name:
+            return
+        remote, branch = name.split("/", 1)
+        if not remote or not branch:
+            return
+        self.remote_branch_delete_requested.emit(remote, branch)
 
     def _add_merge_rebase_section(self, menu: QMenu, oid: str, branches_on_commit: list[str]) -> None:
         """Append the Merge / Rebase section to a context menu, applying disable rules."""
