@@ -14,6 +14,7 @@ class BranchFlowsMixin:
         self._sidebar.branch_checkout_requested.connect(self._on_branch_changed)
         self._sidebar.branch_delete_requested.connect(self._on_delete_branch)
         self._sidebar.remote_branch_delete_requested.connect(self._on_delete_remote_branch)
+        self._graph.remote_branch_delete_requested.connect(self._on_delete_remote_branch)
         self._graph.delete_branch_requested.connect(self._on_delete_branch)
         self._graph.create_branch_requested.connect(self._on_create_branch)
         self._graph.checkout_commit_requested.connect(self._on_checkout_commit)

@@ -140,6 +140,7 @@ class _StickyPinController:
 
 class DiffWidget(QWidget):
     submodule_open_requested = Signal(str)  # emits the submodule path (relative)
+    commit_oid_copy_requested = Signal(str)  # full 40-char OID — forwarded from _detail
     merge_abort_requested = Signal()
     rebase_abort_requested = Signal()
     rebase_continue_requested = Signal()
@@ -179,6 +180,9 @@ class DiffWidget(QWidget):
         # ── Row 1: commit detail (3-line metadata) ──────────────────────────
         self._detail = CommitDetailWidget()
         self._detail.setAutoFillBackground(True)
+        self._detail.commit_oid_copy_requested.connect(
+            self.commit_oid_copy_requested.emit
+        )
 
         # ── Row 2: full commit message ──────────────────────────────────────
         self._msg_view = QPlainTextEdit()

@@ -312,3 +312,80 @@ def test_entries_not_shown_when_target_is_head(qtbot):
     texts = [a.text for a in actions]
     assert not any("Cherry-pick" in t for t in texts)
     assert not any("Revert commit" in t for t in texts)
+
+
+# ── Remote branch delete from context menu ─────────────────────────────
+
+
+def test_emit_remote_delete_splits_remote_and_branch(qtbot):
+    """`_emit_remote_delete` should split the qualified name on the first
+    slash and emit (remote, branch)."""
+    from git_gui.presentation.widgets.graph import GraphWidget
+    w = GraphWidget.__new__(GraphWidget)
+    from PySide6.QtWidgets import QWidget
+    QWidget.__init__(w)
+    qtbot.addWidget(w)
+
+    received: list[tuple[str, str]] = []
+    w.remote_branch_delete_requested.connect(
+        lambda r, b: received.append((r, b))
+    )
+
+    w._emit_remote_delete("origin/main")
+
+    assert received == [("origin", "main")]
+
+
+def test_emit_remote_delete_handles_slash_in_branch_name(qtbot):
+    """Branch names can contain slashes (e.g. 'feature/foo'). The split
+    must take the first slash only."""
+    from git_gui.presentation.widgets.graph import GraphWidget
+    w = GraphWidget.__new__(GraphWidget)
+    from PySide6.QtWidgets import QWidget
+    QWidget.__init__(w)
+    qtbot.addWidget(w)
+
+    received: list[tuple[str, str]] = []
+    w.remote_branch_delete_requested.connect(
+        lambda r, b: received.append((r, b))
+    )
+
+    w._emit_remote_delete("origin/feature/foo")
+
+    assert received == [("origin", "feature/foo")]
+
+
+def test_emit_remote_delete_bails_on_malformed_name(qtbot):
+    """A name with no slash means the input is malformed; no signal."""
+    from git_gui.presentation.widgets.graph import GraphWidget
+    w = GraphWidget.__new__(GraphWidget)
+    from PySide6.QtWidgets import QWidget
+    QWidget.__init__(w)
+    qtbot.addWidget(w)
+
+    received: list[tuple[str, str]] = []
+    w.remote_branch_delete_requested.connect(
+        lambda r, b: received.append((r, b))
+    )
+
+    w._emit_remote_delete("no-slash")
+
+    assert received == []
+
+
+def test_emit_remote_delete_bails_on_empty_remote(qtbot):
+    """A leading slash means empty remote — bail."""
+    from git_gui.presentation.widgets.graph import GraphWidget
+    w = GraphWidget.__new__(GraphWidget)
+    from PySide6.QtWidgets import QWidget
+    QWidget.__init__(w)
+    qtbot.addWidget(w)
+
+    received: list[tuple[str, str]] = []
+    w.remote_branch_delete_requested.connect(
+        lambda r, b: received.append((r, b))
+    )
+
+    w._emit_remote_delete("/main")
+
+    assert received == []
