@@ -18,6 +18,20 @@ def test_get_commits_oid_is_string(repo_impl):
     assert len(commits[0].oid) == 40
 
 
+def test_get_commits_timestamp_is_local_tz_aware(repo_impl):
+    """Commit timestamps should be tz-aware in the user's local timezone,
+    not UTC. Render sites call strftime() directly on the datetime, so
+    the tzinfo determines whether the user sees local or UTC wall-clock."""
+    from datetime import datetime
+    commits = repo_impl.get_commits(limit=10)
+    ts = commits[0].timestamp
+    assert ts.tzinfo is not None
+    expected_tz = datetime.now().astimezone().tzinfo
+    # Compare UTC offsets — tzinfo objects may not be `==` even when they
+    # represent the same offset.
+    assert ts.utcoffset() == datetime.now(tz=expected_tz).utcoffset()
+
+
 def test_get_commits_respects_limit(repo_path):
     repo = pygit2.Repository(str(repo_path))
     sig = pygit2.Signature("T", "t@t.com")

@@ -25,7 +25,7 @@ class StashOps:
             try:
                 commit = self._repo.get(stash.commit_id)
                 if commit is not None:
-                    ts = datetime.fromtimestamp(commit.commit_time, tz=timezone.utc)
+                    ts = datetime.fromtimestamp(commit.commit_time, tz=timezone.utc).astimezone()
             except Exception as e:
                 logger.warning("Failed to read stash %d timestamp: %s", i, e)
             result.append(Stash(

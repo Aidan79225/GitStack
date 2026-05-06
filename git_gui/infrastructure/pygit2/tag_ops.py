@@ -32,7 +32,7 @@ class TagOps:
                 # Annotated tag — peel to get the commit OID
                 peeled = ref.peel(pygit2.Commit)
                 commit_oid = str(peeled.id)
-                ts = datetime.fromtimestamp(target.tagger.time, tz=timezone.utc) if target.tagger else None
+                ts = datetime.fromtimestamp(target.tagger.time, tz=timezone.utc).astimezone() if target.tagger else None
                 tagger_str = f"{target.tagger.name} <{target.tagger.email}>" if target.tagger else None
                 tags.append(Tag(
                     name=name,
