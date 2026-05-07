@@ -208,6 +208,9 @@ class GraphWidget(QWidget):
         # Tracks the currently-selected commit so the highlight can be
         # restored after a model reset (which clears the view's current row).
         self._selected_oid: str | None = None
+        # OID at the top of the viewport before a reload, used to restore
+        # the user's scroll position after auto-refresh on focus return.
+        self._scroll_anchor_oid: str | None = None
 
         self._view = _GraphTableView()
         self._view.setSelectionBehavior(QTableView.SelectRows)
@@ -313,6 +316,7 @@ class GraphWidget(QWidget):
         self._pending_scroll_oid = None
         self._pending_merge_base = None
         self._selected_oid = None
+        self._scroll_anchor_oid = None
         self._reload_limit = PAGE_SIZE
         if queries is None:
             self._model.reload([], {})
@@ -323,6 +327,7 @@ class GraphWidget(QWidget):
         if self._loading:
             return
         self._loading = True
+        self._capture_scroll_anchor()
         # Sticky semantic: a bare reload() preserves both the user's last-
         # clicked diverged branch (extra_tips) and the load size that was
         # needed to draw its lane (limit). Auto-reloads from the change
@@ -462,11 +467,49 @@ class GraphWidget(QWidget):
         if not retrying and self._selected_oid is not None:
             self._restore_selection_no_scroll(self._selected_oid)
 
+        # Restore the user's scroll position. Auto-refreshes (e.g., on focus
+        # return) used to silently jump the viewport back to the top because
+        # QTableView resets its scrollbar after a model reset. Only kicks in
+        # when there's no explicit pending scroll target.
+        if not retrying and self._pending_scroll_oid is None:
+            self._restore_scroll_anchor()
+
         # If a search was deferred until all commits were loaded, run it now.
         if self._pending_search:
             needle = self._pending_search
             self._pending_search = None
             self._run_search(needle)
+
+    def _capture_scroll_anchor(self) -> None:
+        """Remember the OID of the row at the top of the visible viewport so
+        we can restore the scroll position after a reload. Called from
+        reload() before the worker runs."""
+        if self._model.rowCount() == 0:
+            self._scroll_anchor_oid = None
+            return
+        top_left = self._view.viewport().rect().topLeft()
+        index = self._view.indexAt(top_left)
+        if index.isValid():
+            self._scroll_anchor_oid = self._model.data(
+                self._model.index(index.row(), 0), Qt.UserRole
+            )
+        else:
+            self._scroll_anchor_oid = None
+
+    def _restore_scroll_anchor(self) -> None:
+        """Scroll the captured anchor OID back to the top of the viewport.
+        No-op if the anchor wasn't captured or its commit is no longer
+        loaded."""
+        if self._scroll_anchor_oid is None:
+            return
+        for row in range(self._model.rowCount()):
+            if self._model.data(self._model.index(row, 0), Qt.UserRole) == self._scroll_anchor_oid:
+                index = self._model.index(row, 0)
+                self._view.scrollTo(index, QTableView.PositionAtTop)
+                return
+        # Anchor commit no longer in the loaded set; clear so we don't keep
+        # trying.
+        self._scroll_anchor_oid = None
 
     def _restore_selection_no_scroll(self, oid: str) -> None:
         """Re-apply the highlighted row to the row matching `oid` after a
