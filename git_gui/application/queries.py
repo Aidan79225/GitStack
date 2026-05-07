@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections.abc import Callable, Iterator
 from datetime import datetime
 from git_gui.domain.entities import Branch, Commit, CommitStat, FileStatus, Hunk, LocalBranchInfo, Remote, RepoStateInfo, Stash, Submodule, Tag, MergeAnalysisResult
 from git_gui.domain.ports import IRepositoryReader
@@ -48,8 +49,14 @@ class GetCommitStats:
     def __init__(self, reader: IRepositoryReader) -> None:
         self._reader = reader
 
-    def execute(self, since: datetime | None = None, until: datetime | None = None) -> list[CommitStat]:
-        return self._reader.get_commit_stats(since, until)
+    def execute(
+        self,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        *,
+        cancel: Callable[[], bool] | None = None,
+    ) -> Iterator[CommitStat]:
+        return self._reader.get_commit_stats(since, until, cancel=cancel)
 
 
 class GetCommitFiles:

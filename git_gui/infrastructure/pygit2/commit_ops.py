@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections.abc import Callable, Iterator
 from datetime import datetime
 import logging
 import subprocess
@@ -149,81 +150,104 @@ class CommitOps:
                 result[path] = _diff_to_hunks(patch)
         return result
 
-    def get_commit_stats(self, since: datetime | None = None, until: datetime | None = None) -> list[CommitStat]:
+    def get_commit_stats(
+        self,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        *,
+        cancel: Callable[[], bool] | None = None,
+    ) -> Iterator[CommitStat]:
         cmd = ["git", "log", "--numstat", "--format=__COMMIT__%n%H%n%aN <%aE>%n%aI"]
         if since:
             cmd.append(f"--since={since.isoformat()}")
         if until:
             cmd.append(f"--until={until.isoformat()}")
-        try:
-            result = subprocess.run(
-                cmd, capture_output=True, text=True,
-                cwd=self._repo.workdir, env=self._git_env, **subprocess_kwargs(),
-            )
-            if result.returncode != 0:
-                return []
-        except Exception as e:
-            logger.warning("Failed to run git log for commit stats: %s", e)
-            return []
 
-        stats: list[CommitStat] = []
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                bufsize=1,
+                cwd=self._repo.workdir,
+                env=self._git_env,
+                **subprocess_kwargs(),
+            )
+        except Exception as e:
+            logger.warning("Failed to start git log for commit stats: %s", e)
+            return
+
         current_oid: str | None = None
         current_author: str | None = None
         current_ts: datetime | None = None
         current_files: list[FileStat] = []
         state = "expect_marker"  # expect_marker | oid | author | date | files
 
-        def flush() -> None:
+        def _build() -> CommitStat | None:
             if current_oid and current_author and current_ts is not None:
-                stats.append(CommitStat(
+                return CommitStat(
                     oid=current_oid,
                     author=current_author,
                     timestamp=current_ts,
                     files=list(current_files),
-                ))
+                )
+            return None
 
-        for raw_line in result.stdout.splitlines():
-            line = raw_line.rstrip("\r")
-            if line == "__COMMIT__":
-                flush()
-                current_oid = None
-                current_author = None
-                current_ts = None
-                current_files = []
-                state = "oid"
-                continue
-            if state == "oid":
-                current_oid = line
-                state = "author"
-                continue
-            if state == "author":
-                current_author = line
-                state = "date"
-                continue
-            if state == "date":
-                try:
-                    current_ts = datetime.fromisoformat(line)
-                except ValueError:
+        try:
+            assert proc.stdout is not None
+            for raw_line in proc.stdout:
+                line = raw_line.rstrip("\r\n")
+                if line == "__COMMIT__":
+                    cs = _build()
+                    if cs is not None:
+                        yield cs
+                        if cancel is not None and cancel():
+                            return
+                    current_oid = None
+                    current_author = None
                     current_ts = None
-                state = "files"
-                continue
-            if state == "files":
-                if not line.strip():
+                    current_files = []
+                    state = "oid"
                     continue
-                # numstat format: "<added>\t<deleted>\t<path>"
-                parts = line.split("\t")
-                if len(parts) != 3:
+                if state == "oid":
+                    current_oid = line
+                    state = "author"
                     continue
-                added_str, deleted_str, path = parts
-                try:
-                    added = int(added_str) if added_str != "-" else 0
-                    deleted = int(deleted_str) if deleted_str != "-" else 0
-                except ValueError:
+                if state == "author":
+                    current_author = line
+                    state = "date"
                     continue
-                current_files.append(FileStat(path=path, added=added, deleted=deleted))
+                if state == "date":
+                    try:
+                        current_ts = datetime.fromisoformat(line)
+                    except ValueError:
+                        current_ts = None
+                    state = "files"
+                    continue
+                if state == "files":
+                    if not line.strip():
+                        continue
+                    parts = line.split("\t")
+                    if len(parts) != 3:
+                        continue
+                    added_str, deleted_str, path = parts
+                    try:
+                        added = int(added_str) if added_str != "-" else 0
+                        deleted = int(deleted_str) if deleted_str != "-" else 0
+                    except ValueError:
+                        continue
+                    current_files.append(FileStat(path=path, added=added, deleted=deleted))
 
-        flush()
-        return stats
+            cs = _build()
+            if cs is not None:
+                yield cs
+        finally:
+            try:
+                proc.terminate()
+                proc.wait(timeout=2)
+            except Exception:
+                pass
 
     def is_ancestor(self, ancestor_oid: str, descendant_oid: str) -> bool:
         if ancestor_oid == descendant_oid:
