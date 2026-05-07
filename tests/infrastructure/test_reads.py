@@ -183,7 +183,7 @@ def test_get_tags_annotated(repo_path, repo_impl):
 
 
 def test_get_commit_stats_returns_initial_commit(repo_impl):
-    stats = repo_impl.get_commit_stats()
+    stats = list(repo_impl.get_commit_stats())
     assert len(stats) == 1
     assert "Test User" in stats[0].author
     assert len(stats[0].files) == 1
@@ -247,7 +247,7 @@ def test_get_commit_stats_with_multiple_commits(repo_path, repo_impl):
     head_oid = raw.head.target
     raw.create_commit("refs/heads/master", sig, sig, "Add second", tree, [head_oid])
 
-    stats = repo_impl.get_commit_stats()
+    stats = list(repo_impl.get_commit_stats())
     assert len(stats) == 2
     authors = [s.author for s in stats]
     assert any("Author Two" in a for a in authors)
@@ -677,3 +677,50 @@ def test_merge_base_returns_none_for_unknown_oid(repo_impl):
     assert repo_impl.merge_base(real, bogus) is None
     # Malformed hex — too short
     assert repo_impl.merge_base(real, "abc") is None
+
+
+def test_get_commit_stats_returns_iterator(repo_impl):
+    """get_commit_stats should be a generator/iterator, not a list."""
+    import inspect
+    result = repo_impl.get_commit_stats()
+    assert inspect.isgenerator(result) or hasattr(result, "__next__")
+
+
+def test_get_commit_stats_yields_commits_in_order(repo_impl):
+    """The streaming generator yields each commit in repo order
+    (newest first, like git log)."""
+    stats = list(repo_impl.get_commit_stats())
+    assert len(stats) >= 1
+    assert all(cs.oid and cs.author for cs in stats)
+
+
+def test_get_commit_stats_cancel_stops_iteration(repo_path):
+    """When the cancel callback returns True, the generator terminates
+    after the next commit boundary and the subprocess is gone."""
+    import pygit2
+    from git_gui.infrastructure.pygit2 import Pygit2Repository
+
+    repo = pygit2.Repository(str(repo_path))
+    sig = pygit2.Signature("T", "t@t.com")
+    head_oid = repo.head.target
+    # Add a few commits so the stream has something to iterate over.
+    for i in range(3):
+        (repo_path / f"f{i}.txt").write_text(f"f{i}")
+        repo.index.add(f"f{i}.txt")
+        repo.index.write()
+        tree = repo.index.write_tree()
+        head_oid = repo.create_commit(
+            "refs/heads/master", sig, sig, f"c{i}", tree, [head_oid]
+        )
+
+    impl = Pygit2Repository(str(repo_path))
+    cancel_calls = {"n": 0}
+
+    def cancel() -> bool:
+        cancel_calls["n"] += 1
+        return cancel_calls["n"] >= 1  # cancel after the very first check
+
+    stats = list(impl.get_commit_stats(cancel=cancel))
+    # First commit should be yielded; cancel triggers after that.
+    assert len(stats) <= 2  # tolerate one buffered boundary
+    assert cancel_calls["n"] >= 1

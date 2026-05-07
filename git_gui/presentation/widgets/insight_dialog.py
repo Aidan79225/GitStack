@@ -339,7 +339,7 @@ class InsightDialog(QDialog):
         queries = self._queries
 
         def _worker():
-            stats = queries.get_commit_stats.execute(since, until)
+            stats = list(queries.get_commit_stats.execute(since, until))
             signals.done.emit(generation, stats)
 
         threading.Thread(target=_worker, daemon=True).start()
