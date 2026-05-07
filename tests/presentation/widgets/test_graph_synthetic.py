@@ -43,9 +43,6 @@ def _make_widget(qtbot) -> GraphWidget:
     # _stash_btn is called with setVisible; use a simple mock
     w._stash_btn = MagicMock()
 
-    # _update_column_widths touches the view/viewport — stub it out
-    w._update_column_widths = lambda: None
-
     qtbot.addWidget(w)
     return w
 

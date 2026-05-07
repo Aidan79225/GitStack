@@ -44,7 +44,6 @@ def _make_widget(qtbot, commits: list[Commit] | None = None) -> GraphWidget:
     w._extra_tips = None
     w._selected_oid = None
     w._stash_btn = MagicMock()
-    w._update_column_widths = lambda: None
 
     # _view is used by scroll_to_oid, clear_selection, and _on_row_changed.
     # A MagicMock suffices — we assert on call targets, not Qt rendering.
