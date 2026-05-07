@@ -14,13 +14,12 @@ from git_gui.presentation.bus import CommandBus, QueryBus
 from git_gui.presentation.theme import get_theme_manager, connect_widget
 from git_gui.presentation.models.graph_model import GraphModel
 from git_gui.presentation.widgets.graph_lane_delegate import GraphLaneDelegate, LANE_W
-from git_gui.presentation.widgets.commit_info_delegate import (
-    CommitInfoDelegate, BADGE_GAP, BADGE_H_PAD, CELL_PAD,
-)
+from git_gui.presentation.widgets.commit_info_delegate import CommitInfoDelegate
 
 
 PAGE_SIZE = 50
 MAX_RELOAD_LIMIT = 2000  # cap doubling retry to avoid unbounded loads
+_DEFAULT_GRAPH_COL_W = 8 * LANE_W  # 128 px — fits ~8 parallel lanes
 
 
 class _GraphTableView(QTableView):
@@ -234,7 +233,7 @@ class GraphWidget(QWidget):
         header = self._view.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.Fixed)
         header.setSectionResizeMode(1, QHeaderView.Stretch)
-        self._view.setColumnWidth(0, LANE_W)
+        self._view.setColumnWidth(0, _DEFAULT_GRAPH_COL_W)
         self._view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._view.selectionModel().currentRowChanged.connect(self._on_row_changed)
 
@@ -427,7 +426,6 @@ class GraphWidget(QWidget):
             all_commits.insert(0, synthetic)
 
         self._model.reload(all_commits, refs, head_branch)
-        self._update_column_widths()
 
         retrying = False
         if self._pending_scroll_oid:
@@ -484,59 +482,7 @@ class GraphWidget(QWidget):
                 )
                 return
 
-    def _get_visible_rows(self) -> tuple[int, int]:
-        """Return (first_visible_row, last_visible_row) indices."""
-        vp = self._view.viewport()
-        first = self._view.rowAt(0)
-        last = self._view.rowAt(vp.height())
-        if first < 0:
-            first = 0
-        if last < 0:
-            last = self._model.rowCount() - 1
-        return first, last
-
-    _INFO_MIN_W = 250
-
-    def _compute_info_width(self, first: int, last: int) -> int:
-        """Compute the minimum info column width to fit visible rows' content."""
-        fm = self._view.fontMetrics()
-        spacing = fm.horizontalAdvance("  ")
-        pad = CELL_PAD * 2
-        max_w = self._INFO_MIN_W
-        for r in range(first, last + 1):
-            info = self._model.data(self._model.index(r, 1), Qt.UserRole + 1)
-            if info is None:
-                continue
-            author = info.author.split("<")[0].strip() if "<" in info.author else info.author
-            w1 = fm.horizontalAdvance(author) + fm.horizontalAdvance(info.timestamp) + spacing
-            badges_w = sum(
-                fm.horizontalAdvance(n) + BADGE_H_PAD * 2 + BADGE_GAP
-                for n in info.branch_names
-            )
-            w2 = badges_w + fm.horizontalAdvance(info.short_oid) + spacing
-            max_w = max(max_w, w1, w2)
-        return max_w + pad
-
-    def _update_column_widths(self) -> None:
-        if self._model.rowCount() == 0:
-            return
-        first, last = self._get_visible_rows()
-
-        max_lanes = max(
-            (self._model.data(self._model.index(r, 0), Qt.UserRole + 1).n_lanes
-             for r in range(first, last + 1)
-             if self._model.data(self._model.index(r, 0), Qt.UserRole + 1) is not None),
-            default=1,
-        )
-        graph_w = max_lanes * LANE_W + LANE_W
-        info_w = self._compute_info_width(first, last)
-        self._view.setColumnWidth(0, graph_w)
-        # Info column stretches to fill, but set minimumWidth so
-        # the splitter gives us enough total space
-        self.setMinimumWidth(graph_w + info_w)
-
     def _on_scroll(self, value: int) -> None:
-        self._update_column_widths()
         scrollbar = self._view.verticalScrollBar()
         if self._has_more and not self._loading and value >= scrollbar.maximum() - 1:
             self._load_more()
