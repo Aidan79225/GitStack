@@ -7,7 +7,6 @@ from PySide6.QtWidgets import (
     QButtonGroup, QDateEdit, QDialog, QFrame, QHBoxLayout, QLabel,
     QPushButton, QScrollArea, QVBoxLayout, QWidget,
 )
-from git_gui.domain.entities import CommitStat
 from git_gui.presentation.bus import QueryBus
 from git_gui.presentation.theme import get_theme_manager, connect_widget
 
@@ -38,7 +37,11 @@ def _red() -> str:
 
 
 class _LoadSignals(QObject):
-    done = Signal(int, list)  # generation, list[CommitStat]
+    progress = Signal(int, float)  # commits_processed, elapsed_seconds
+    done = Signal(int, dict, dict, dict, dict, set, int)
+    # generation, author_commits, author_added, author_deleted,
+    # file_counts, files_changed, total_commits
+    cancelled = Signal(int)  # generation
 
 
 class _SummaryCard(QFrame):
@@ -212,8 +215,9 @@ class InsightDialog(QDialog):
     def __init__(self, queries: QueryBus, parent=None) -> None:
         super().__init__(parent)
         self._queries = queries
-        self._stats: list[CommitStat] = []
         self._load_generation = 0
+        self._cancel: threading.Event | None = None
+        self._last_render: tuple | None = None
 
         self.setWindowTitle("Git Insight")
         self.resize(700, 800)
@@ -285,10 +289,14 @@ class InsightDialog(QDialog):
 
     def _rebuild_styles(self) -> None:
         self._loading_label.setStyleSheet(f"color: {_muted()}; padding: 40px;")
-        # Re-render content cards (they bake colors at construction time).
-        if self._stats:
-            self._render_content()
+        if self._last_render is not None:
+            self._render_content(*self._last_render)
         self.update()
+
+    def closeEvent(self, event) -> None:
+        if self._cancel is not None:
+            self._cancel.set()
+        super().closeEvent(event)
 
     def _on_range_changed(self, label: str) -> None:
         self._custom_widget.setVisible(label == "Custom")
@@ -326,34 +334,111 @@ class InsightDialog(QDialog):
         return (None, None)
 
     def _reload(self, since: datetime | None, until: datetime | None) -> None:
+        # Cancel any in-flight worker — we're superseding it.
+        if self._cancel is not None:
+            self._cancel.set()
+
+        self._loading_label.setText("Loading...")
         self._loading_label.setVisible(True)
         self._scroll.setVisible(False)
 
         self._load_generation += 1
         generation = self._load_generation
+        self._cancel = threading.Event()
+        cancel_event = self._cancel
 
         signals = _LoadSignals()
+        signals.progress.connect(self._on_progress)
         signals.done.connect(self._on_loaded)
+        signals.cancelled.connect(self._on_cancelled)
         self._load_signals = signals  # prevent GC
 
         queries = self._queries
 
-        def _worker():
-            stats = list(queries.get_commit_stats.execute(since, until))
-            signals.done.emit(generation, stats)
+        def _worker() -> None:
+            import time
+            author_commits: dict[str, int] = {}
+            author_added: dict[str, int] = {}
+            author_deleted: dict[str, int] = {}
+            file_counts: dict[str, int] = {}
+            files_changed: set[str] = set()
+            total = 0
+            started = time.monotonic()
+            last_progress = started
+
+            try:
+                for cs in queries.get_commit_stats.execute(
+                    since, until, cancel=cancel_event.is_set
+                ):
+                    total += 1
+                    author_commits[cs.author] = author_commits.get(cs.author, 0) + 1
+                    for f in cs.files:
+                        author_added[cs.author] = author_added.get(cs.author, 0) + f.added
+                        author_deleted[cs.author] = author_deleted.get(cs.author, 0) + f.deleted
+                        file_counts[f.path] = file_counts.get(f.path, 0) + 1
+                        files_changed.add(f.path)
+
+                    now = time.monotonic()
+                    if now - last_progress >= 0.25:
+                        signals.progress.emit(total, now - started)
+                        last_progress = now
+            except Exception:
+                pass
+
+            if cancel_event.is_set():
+                signals.cancelled.emit(generation)
+                return
+
+            signals.done.emit(
+                generation, author_commits, author_added,
+                author_deleted, file_counts, files_changed, total,
+            )
 
         threading.Thread(target=_worker, daemon=True).start()
 
-    def _on_loaded(self, generation: int, stats: list[CommitStat]) -> None:
-        # Discard stale results from superseded queries
+    def _on_loaded(
+        self,
+        generation: int,
+        author_commits: dict,
+        author_added: dict,
+        author_deleted: dict,
+        file_counts: dict,
+        files_changed: set,
+        total_commits: int,
+    ) -> None:
         if generation != self._load_generation:
             return
-        self._stats = stats
         self._loading_label.setVisible(False)
         self._scroll.setVisible(True)
-        self._render_content()
+        self._render_content(
+            author_commits, author_added, author_deleted,
+            file_counts, files_changed, total_commits,
+        )
 
-    def _render_content(self) -> None:
+    def _on_cancelled(self, generation: int) -> None:
+        # Worker was cancelled (closeEvent or supersession). Nothing to render.
+        if generation != self._load_generation:
+            return
+        # Keep the loading label visible briefly so a fast cancel still
+        # shows that we acknowledged it; closeEvent will tear the dialog
+        # down anyway.
+        self._loading_label.setText("Cancelled.")
+
+    def _on_progress(self, total: int, elapsed: float) -> None:
+        # Format with thousands separator for readability on huge repos.
+        self._loading_label.setText(f"Processed {total:,} commits, {elapsed:.1f}s...")
+
+    def _render_content(
+        self,
+        author_commits: dict[str, int],
+        author_added: dict[str, int],
+        author_deleted: dict[str, int],
+        file_counts: dict[str, int],
+        files_changed: set[str],
+        total_commits: int,
+    ) -> None:
+        self._last_render = (author_commits, author_added, author_deleted, file_counts, files_changed, total_commits)
+
         # Clear existing content
         while self._content_layout.count():
             item = self._content_layout.takeAt(0)
@@ -361,7 +446,7 @@ class InsightDialog(QDialog):
             if w:
                 w.deleteLater()
 
-        if not self._stats:
+        if total_commits == 0:
             empty = QLabel("No commits in this time range")
             empty.setAlignment(Qt.AlignCenter)
             empty.setStyleSheet(f"color: {_muted()}; padding: 40px;")
@@ -369,22 +454,6 @@ class InsightDialog(QDialog):
             self._content_layout.addStretch()
             return
 
-        # ── Aggregation ──────────────────────────────────────────────────────
-        author_commits: dict[str, int] = {}
-        author_added: dict[str, int] = {}
-        author_deleted: dict[str, int] = {}
-        file_counts: dict[str, int] = {}
-        files_changed: set[str] = set()
-
-        for cs in self._stats:
-            author_commits[cs.author] = author_commits.get(cs.author, 0) + 1
-            for f in cs.files:
-                author_added[cs.author] = author_added.get(cs.author, 0) + f.added
-                author_deleted[cs.author] = author_deleted.get(cs.author, 0) + f.deleted
-                file_counts[f.path] = file_counts.get(f.path, 0) + 1
-                files_changed.add(f.path)
-
-        total_commits = len(self._stats)
         active_authors = len(author_commits)
         total_files = len(files_changed)
 
