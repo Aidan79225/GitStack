@@ -13,7 +13,9 @@ A clean, focused desktop Git client built with Python and PySide6 (Qt) for every
 - Lazy pagination — automatically expands the loaded range to reach distant branches
 - **Inline search** (Ctrl+F) — search commit messages, authors, hashes, and dates across the full history
 - Click any commit to view its file list and unified diff
-- **Auto-refresh** — the UI reloads automatically when the repo changes outside GitCrisp (e.g., a `git commit` in a terminal) or when you tab back after editing a file in your editor
+- **Click the commit hash** on the detail panel to copy the full 40-char OID to the clipboard; a status-bar toast confirms
+- **Auto-refresh** — the UI reloads automatically when the repo changes outside GitCrisp (e.g., a `git commit` in a terminal) or when you tab back after editing a file in your editor; your scroll position in the commit list is preserved across the refresh
+- Timestamps render in your local timezone (was UTC pre-2026-05-06)
 - Click a branch in the sidebar to scroll the graph to its HEAD
 
 ### Working Tree & Staging
@@ -23,6 +25,7 @@ A clean, focused desktop Git client built with Python and PySide6 (Qt) for every
 - **Syntax highlighting** in diff hunks via Pygments — supports hundreds of languages
 - **Word-level intra-line diff** highlights the changed words within `-`/`+` line pairs
 - **Lazy diff loading** — skeleton placeholders that realize on scroll for smooth handling of large commits
+- **Collapsible commit message + per-file diff blocks** — chevron toggles next to the message header and on each file's header collapse to the subject line / file header respectively, so you can skip past large diffs without scrolling
 - Discard a single hunk or an entire file from the diff view
 - Add files to `.gitignore` from the context menu
 - Commit message editor with immediate feedback
@@ -62,7 +65,7 @@ A clean, focused desktop Git client built with Python and PySide6 (Qt) for every
 ### Remote Operations
 - Push, pull, fetch, and fetch-all-prune from the toolbar
 - Fetch from a specific remote via sidebar context menu
-- **Delete a remote branch** via sidebar context menu (`git push <remote> --delete <branch>`) with confirmation
+- **Delete a remote branch** — from the sidebar context menu OR by right-clicking a graph row carrying a remote-only ref (e.g., `origin/some-feature`); both prompt for confirmation
 - **Force push prompt** — when a push is rejected (non-fast-forward), a confirmation message box offers to force push with `--force-with-lease`
 - **`Git → Remotes...`** dialog: list, add, edit (rename / change URL), and remove remotes
 - All remote operations run in background threads with status bar indicator
@@ -87,7 +90,8 @@ A clean, focused desktop Git client built with Python and PySide6 (Qt) for every
 - Live preview, no restart needed
 
 ### Insights
-- Per-author commit stats over a configurable date range
+- Per-author commit stats over a configurable date range (This Week / This Month / This Year / All / Custom)
+- **Streaming + cancellable** — `git log --numstat` runs in a worker thread; the loading label updates every ~250 ms (`Processed N commits, T s…`) and closing the dialog terminates the subprocess, so even "All" on a long-lived repo is workable
 - Useful for retrospectives and contribution overviews
 
 ### Keyboard Shortcuts
