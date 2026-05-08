@@ -22,6 +22,14 @@ class _CollapseToggle(QToolButton):
         self.setFixedSize(QSize(16, 16))
         self.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
         self.setCursor(Qt.PointingHandCursor)
+        # Drop the QToolButton chrome on every state — the user only wants
+        # the bare arrow, no surrounding border / hover background.
+        self.setStyleSheet(
+            "QToolButton { border: none; background: transparent; padding: 0; }"
+            "QToolButton:hover { background: transparent; }"
+            "QToolButton:pressed { background: transparent; }"
+            "QToolButton:checked { background: transparent; }"
+        )
         self.toggled.connect(self._on_toggle)
 
     def _on_toggle(self, checked: bool) -> None:
