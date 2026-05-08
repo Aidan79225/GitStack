@@ -376,3 +376,50 @@ def test_render_all_files_while_unpinned_does_not_call_setvalue(
     with patch.object(sb, "setValue") as mock_setvalue, patch("threading.Thread"):
         widget._render_all_files("abc123")
         mock_setvalue.assert_not_called()
+
+
+def test_message_collapse_shrinks_msg_view_to_subject_line(diff_widget, qtbot):
+    """Toggling the commit message panel to collapsed shrinks _msg_view's
+    fixed height down to one line of text plus the document margin.
+    Expanding restores the full height that fits the multi-line body."""
+    widget, queries = diff_widget
+
+    # Need a multi-line message so collapse vs expand differ visibly.
+    # Use an author without <email> to avoid triggering a Gravatar network
+    # request that would leave a pending QNetworkReply in the Qt event queue
+    # and corrupt subsequent test teardowns.
+    from datetime import datetime
+    from git_gui.domain.entities import Commit
+    multi_line_msg = "Subject line\n\nBody paragraph one.\nBody paragraph two."
+    commit = Commit(
+        oid="a" * 40,
+        message=multi_line_msg,
+        author="Alice",
+        timestamp=datetime(2026, 5, 8, 12, 0),
+        parents=[],
+    )
+    # Drive load_commit through the underlying queries mock.
+    # Patch Thread so _render_all_files doesn't spawn a real background thread —
+    # a real thread's cross-thread signal emission can race against teardown.
+    queries.get_commit_detail.execute.return_value = commit
+    queries.get_branches.execute.return_value = []
+    queries.get_commit_files.execute.return_value = []
+    queries.get_commit_diff_map.execute.return_value = {}
+    with patch("threading.Thread"):
+        widget.load_commit(commit.oid)
+
+    full_h = widget._msg_view.height()
+    assert full_h > 0
+
+    # Collapse — height shrinks.
+    widget._msg_toggle.click()
+    collapsed_h = widget._msg_view.height()
+    assert collapsed_h < full_h
+    # One-line height is roughly fontMetrics().lineSpacing() + margins,
+    # which is significantly smaller than four paragraphs.
+    line_h = widget._msg_view.fontMetrics().lineSpacing()
+    assert collapsed_h < line_h * 2 + 40  # generous upper bound
+
+    # Expand — height returns to full.
+    widget._msg_toggle.click()
+    assert widget._msg_view.height() == full_h

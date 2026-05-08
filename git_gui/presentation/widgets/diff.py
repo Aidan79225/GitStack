@@ -14,6 +14,7 @@ from git_gui.presentation.widgets.file_navigator import FileNavigatorWidget, Nav
 from git_gui.presentation.widgets.diff_block import (
     make_file_block, make_diff_formats, make_syntax_formats, add_hunk_widget,
 )
+from git_gui.presentation.widgets._collapse_toggle import _CollapseToggle
 from git_gui.presentation.widgets.viewport_block_loader import ViewportBlockLoader
 
 logger = logging.getLogger(__name__)
@@ -196,6 +197,29 @@ class DiffWidget(QWidget):
         font.setFamily("Courier New")
         self._msg_view.setFont(font)
 
+        # Wrap the message view in a panel with a slim collapsible header.
+        self._msg_panel = QWidget()
+        msg_panel_layout = QVBoxLayout(self._msg_panel)
+        msg_panel_layout.setContentsMargins(0, 0, 0, 0)
+        msg_panel_layout.setSpacing(2)
+
+        msg_header_row = QHBoxLayout()
+        msg_header_row.setContentsMargins(0, 0, 0, 0)
+        msg_header_row.setSpacing(4)
+        self._msg_toggle = _CollapseToggle(expanded=True)
+        msg_header_row.addWidget(self._msg_toggle)
+        self._msg_header_label = QLabel("Message")
+        msg_header_row.addWidget(self._msg_header_label)
+        msg_header_row.addStretch()
+
+        msg_panel_layout.addLayout(msg_header_row)
+        msg_panel_layout.addWidget(self._msg_view)
+
+        # Cached heights filled in by load_commit; expanded by default.
+        self._msg_full_h: int = 0
+        self._msg_collapsed_h: int = 0
+        self._msg_toggle.state_changed.connect(self._on_msg_toggle)
+
         # ── Diff container (will live inside the unified scroll area) ────────
         self._diff_container = QWidget()
         self._diff_layout = QVBoxLayout(self._diff_container)
@@ -231,7 +255,7 @@ class DiffWidget(QWidget):
         scroll_content_layout.setContentsMargins(0, 0, 0, 0)
         scroll_content_layout.setSpacing(8)
         scroll_content_layout.addWidget(self._detail)
-        scroll_content_layout.addWidget(self._msg_view)
+        scroll_content_layout.addWidget(self._msg_panel)
         scroll_content_layout.addWidget(self._flow_slot)
         scroll_content_layout.addWidget(self._diff_container)
         scroll_content_layout.addStretch(1)
@@ -268,10 +292,17 @@ class DiffWidget(QWidget):
     def _set_empty_state(self, empty: bool) -> None:
         """Hide or show all sub-panels based on whether a commit is loaded."""
         self._detail.setVisible(not empty)
-        self._msg_view.setVisible(not empty)
+        self._msg_panel.setVisible(not empty)
         self._file_navigator.setVisible(not empty)
         self._diff_container.setVisible(not empty)
         self._scroll_area.setVisible(not empty)
+
+    def _on_msg_toggle(self, expanded: bool) -> None:
+        if self._msg_full_h <= 0 or self._msg_collapsed_h <= 0:
+            return
+        self._msg_view.setFixedHeight(
+            self._msg_full_h if expanded else self._msg_collapsed_h
+        )
 
     def update_state_banner(self, state_name: str) -> None:
         """Show or hide the merge/rebase state banner."""
@@ -335,6 +366,8 @@ class DiffWidget(QWidget):
         self._current_oid = None
         self._detail.clear()
         self._msg_view.clear()
+        self._msg_full_h = 0
+        self._msg_collapsed_h = 0
         self._diff_model.reload([])
         self._clear_blocks()
         self._set_empty_state(True)
@@ -370,6 +403,8 @@ class DiffWidget(QWidget):
             self._current_oid = None
             self._detail.clear()
             self._msg_view.clear()
+            self._msg_full_h = 0
+            self._msg_collapsed_h = 0
             self._diff_model.reload([])
             self._clear_blocks()
             self._set_empty_state(True)
@@ -384,12 +419,20 @@ class DiffWidget(QWidget):
         msg = commit.message
         if not msg.endswith("\n"):
             msg += "\n"
+        # Each commit starts with the message expanded — collapse state
+        # is per-commit, not per-session.
+        self._msg_toggle.blockSignals(True)
+        self._msg_toggle.setChecked(True)
+        self._msg_toggle.blockSignals(False)
+        self._msg_toggle.setArrowType(Qt.DownArrow)
+
         self._msg_view.setPlainText(msg)
         line_count = msg.count("\n") + 1
         line_h = self._msg_view.fontMetrics().lineSpacing()
         doc_margin = self._msg_view.document().documentMargin() * 2
-        msg_h = int(line_count * line_h + doc_margin)
-        self._msg_view.setFixedHeight(msg_h)
+        self._msg_full_h = int(line_count * line_h + doc_margin)
+        self._msg_collapsed_h = int(line_h + doc_margin)
+        self._msg_view.setFixedHeight(self._msg_full_h)
 
         # Files — no auto-selection; show all files' hunks as bordered blocks
         files = self._queries.get_commit_files.execute(oid)
@@ -453,7 +496,11 @@ class DiffWidget(QWidget):
             (lambda p=path: self.submodule_open_requested.emit(p))
             if is_submodule else None
         )
-        frame, inner = make_file_block(path, on_header_clicked=on_click)
+        frame, inner = make_file_block(
+            path,
+            on_header_clicked=on_click,
+            on_state_changed=lambda _expanded: self._loader.check_viewport(),
+        )
         frame.setProperty("file_path", path)
         skeleton = make_skeleton_container()
         inner.addWidget(skeleton)
@@ -476,6 +523,18 @@ class DiffWidget(QWidget):
                 syntax_formats=self._syntax_formats,
                 filename=path,
             )
+
+        # If the user collapsed this file before realize fired, the newly
+        # added hunk widgets default to visible — sync them with the toggle.
+        from git_gui.presentation.widgets._collapse_toggle import _CollapseToggle
+        frame = inner.parentWidget()  # the QFrame that owns `inner`
+        toggle = frame.findChild(_CollapseToggle) if frame is not None else None
+        if toggle is not None and not toggle.isChecked():
+            for i in range(1, inner.count()):
+                item = inner.itemAt(i)
+                w = item.widget() if item else None
+                if w is not None:
+                    w.setVisible(False)
 
     def _on_file_selected(self, index) -> None:
         if self._current_oid is None:
