@@ -107,6 +107,7 @@ _KIND_TO_ATTR = {
 def make_file_block(
     path: str,
     on_header_clicked: Callable[[], None] | None = None,
+    on_state_changed: Callable[[bool], None] | None = None,
 ) -> tuple[QFrame, QVBoxLayout]:
     """Return a bordered QFrame with an amber file-header label and its inner layout.
 
@@ -148,6 +149,8 @@ def make_file_block(
             w = item.widget() if item else None
             if w is not None:
                 w.setVisible(expanded)
+        if on_state_changed is not None:
+            on_state_changed(expanded)
 
     toggle.state_changed.connect(_set_expanded)
 

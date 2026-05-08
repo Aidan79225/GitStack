@@ -65,6 +65,15 @@ class ViewportBlockLoader:
         self._diff_map = diff_map
         QTimer.singleShot(0, self._check_viewport)
 
+    def check_viewport(self) -> None:
+        """Re-run the viewport intersection check on the next debounce tick.
+
+        Useful when a layout change (e.g., a file diff block collapsing or
+        expanding) shifts which blocks are visible without firing a
+        scrollbar valueChanged signal.
+        """
+        self._scroll_timer.start()
+
     def clear(self) -> None:
         """Reset all state. Call from the widget's layout-clear method."""
         self._block_refs = []
