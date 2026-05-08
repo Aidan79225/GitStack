@@ -30,6 +30,7 @@ class _ClickableLabel(QLabel):
 
 from git_gui.domain.entities import Hunk
 from git_gui.presentation.theme import get_theme_manager, connect_widget
+from git_gui.presentation.widgets._collapse_toggle import _CollapseToggle
 
 # ---------------------------------------------------------------------------
 # Style constants
@@ -128,6 +129,8 @@ def make_file_block(
     header_row_layout = QHBoxLayout(header_row)
     header_row_layout.setContentsMargins(0, HEADER_ROW_VPAD, 0, HEADER_ROW_VPAD)
     header_row_layout.setSpacing(4)
+    toggle = _CollapseToggle(expanded=True)
+    header_row_layout.addWidget(toggle)
     label_text = f"\U0001f4c4 {path}"
     if on_header_clicked is not None:
         header_label = _ClickableLabel(label_text, on_header_clicked)
@@ -138,6 +141,15 @@ def make_file_block(
     header_row_layout.addStretch()
     header_row.setFixedHeight(HEADER_ROW_HEIGHT + HEADER_ROW_VPAD * 2)
     inner.addWidget(header_row)
+
+    def _set_expanded(expanded: bool) -> None:
+        for i in range(1, inner.count()):
+            item = inner.itemAt(i)
+            w = item.widget() if item else None
+            if w is not None:
+                w.setVisible(expanded)
+
+    toggle.state_changed.connect(_set_expanded)
 
     def _rebuild() -> None:
         frame.setStyleSheet(_file_block_style())
