@@ -317,7 +317,29 @@ class WorkingTreeWidget(QWidget):
         if not msg:
             self.commit_failed.emit("Commit message is empty")
             return
-        self._commands.create_commit.execute(msg)
+
+        # Identity check: if user.name or user.email is missing, prompt
+        # the user inline rather than committing with a placeholder.
+        name, email = self._queries.get_identity.execute()
+        if not name or not email:
+            from git_gui.presentation.dialogs.identity_dialog import IdentityDialog
+            from PySide6.QtWidgets import QDialog
+            dlg = IdentityDialog(name, email, parent=self)
+            if dlg.exec() != QDialog.Accepted:
+                return
+            new_name, new_email, global_ = dlg.values()
+            try:
+                self._commands.set_identity.execute(new_name, new_email, global_)
+            except Exception as e:
+                self.commit_failed.emit(f"Failed to save identity: {e}")
+                return
+
+        try:
+            self._commands.create_commit.execute(msg)
+        except Exception as e:
+            self.commit_failed.emit(f"Commit failed: {e}")
+            return
+
         first_line = msg.split("\n")[0]
         self._msg_edit.clear()
         self.commit_completed.emit(first_line)

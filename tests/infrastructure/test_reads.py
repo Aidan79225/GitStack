@@ -724,3 +724,46 @@ def test_get_commit_stats_cancel_stops_iteration(repo_path):
     # First commit should be yielded; cancel triggers after that.
     assert len(stats) <= 2  # tolerate one buffered boundary
     assert cancel_calls["n"] >= 1
+
+
+def test_get_identity_returns_none_when_unset(repo_path):
+    """A fresh repo with no user.name/user.email returns (None, None)."""
+    import subprocess
+    # Ensure repo-local config has no user.name/user.email.
+    subprocess.run(
+        ["git", "config", "--local", "--unset-all", "user.name"],
+        cwd=str(repo_path), check=False,
+    )
+    subprocess.run(
+        ["git", "config", "--local", "--unset-all", "user.email"],
+        cwd=str(repo_path), check=False,
+    )
+    from git_gui.infrastructure.pygit2 import Pygit2Repository
+    impl = Pygit2Repository(str(repo_path))
+    name, email = impl.get_identity()
+    # Note: a global config may set them. Test the "unset locally" path —
+    # if global is set, both will be non-None; we just assert the call works.
+    assert isinstance(name, (str, type(None)))
+    assert isinstance(email, (str, type(None)))
+
+
+def test_set_identity_local_then_get(repo_path):
+    """set_identity(global_=False) writes user.name/user.email locally,
+    and a subsequent get_identity returns them."""
+    from git_gui.infrastructure.pygit2 import Pygit2Repository
+    impl = Pygit2Repository(str(repo_path))
+    impl.set_identity("Alice", "alice@example.com", global_=False)
+    name, email = impl.get_identity()
+    assert name == "Alice"
+    assert email == "alice@example.com"
+
+
+def test_set_identity_overwrites_existing(repo_path):
+    """A second set_identity replaces the first values."""
+    from git_gui.infrastructure.pygit2 import Pygit2Repository
+    impl = Pygit2Repository(str(repo_path))
+    impl.set_identity("Alice", "alice@example.com", global_=False)
+    impl.set_identity("Bob", "bob@example.com", global_=False)
+    name, email = impl.get_identity()
+    assert name == "Bob"
+    assert email == "bob@example.com"

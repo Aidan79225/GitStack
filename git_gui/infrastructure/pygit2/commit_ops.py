@@ -257,10 +257,7 @@ class CommitOps:
     # ----------------------------------------------------------------- helpers
 
     def _get_signature(self) -> pygit2.Signature:
-        try:
-            return self._repo.default_signature
-        except pygit2.GitError:
-            return pygit2.Signature("Git GUI", "gitgui@localhost")
+        return self._repo.default_signature
 
     # ----------------------------------------------------------------- writes
 

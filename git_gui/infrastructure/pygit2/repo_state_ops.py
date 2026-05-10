@@ -96,3 +96,35 @@ class RepoStateOps:
             return True
         except StopIteration:
             return False
+
+    def get_identity(self) -> tuple[str | None, str | None]:
+        """Return (user.name, user.email) from the merged git config.
+        Either may be None if unset."""
+        try:
+            name = self._repo.config["user.name"]
+        except KeyError:
+            name = None
+        try:
+            email = self._repo.config["user.email"]
+        except KeyError:
+            email = None
+        return name, email
+
+    def set_identity(self, name: str, email: str, global_: bool) -> None:
+        """Write user.name and user.email via subprocess `git config`.
+        global_=True writes to ~/.gitconfig; False writes to this repo only."""
+        import subprocess
+        scope = "--global" if global_ else "--local"
+        for key, value in (("user.name", name), ("user.email", email)):
+            result = subprocess.run(
+                ["git", "config", scope, key, value],
+                cwd=self._repo.workdir or self._repo.path,
+                env=self._git_env,
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"git config {scope} {key} failed: "
+                    f"{result.stderr.strip() or result.stdout.strip()}"
+                )

@@ -37,6 +37,14 @@ class GetTags:
         return self._reader.get_tags()
 
 
+class GetIdentity:
+    def __init__(self, reader: IRepositoryReader) -> None:
+        self._reader = reader
+
+    def execute(self) -> tuple[str | None, str | None]:
+        return self._reader.get_identity()
+
+
 class GetRemoteTags:
     def __init__(self, reader: IRepositoryReader) -> None:
         self._reader = reader
