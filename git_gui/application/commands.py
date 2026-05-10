@@ -27,6 +27,14 @@ class CreateCommit:
         return self._writer.commit(message)
 
 
+class SetIdentity:
+    def __init__(self, writer: IRepositoryWriter) -> None:
+        self._writer = writer
+
+    def execute(self, name: str, email: str, global_: bool) -> None:
+        self._writer.set_identity(name, email, global_)
+
+
 class Checkout:
     def __init__(self, writer: IRepositoryWriter) -> None:
         self._writer = writer

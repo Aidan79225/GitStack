@@ -10,6 +10,7 @@ from git_gui.application.queries import (
     GetRepoState, IsAncestor, GetMergeAnalysis,
     GetMergeHead, GetMergeMsg, HasUnresolvedConflicts,
     GetCommitDiffMap, GetWorkingTreeDiffMap, GetCommitRange, GetMergeBase,
+    GetIdentity,
 )
 from git_gui.application.commands import (
     StageFiles, UnstageFiles, CreateCommit,
@@ -28,6 +29,7 @@ from git_gui.application.commands import (
     CherryPickCommit, RevertCommit, ResetBranch,
     CherryPickAbort, CherryPickContinue,
     RevertAbort, RevertContinue,
+    SetIdentity,
 )
 
 
@@ -59,6 +61,7 @@ class QueryBus:
     get_working_tree_diff_map: GetWorkingTreeDiffMap
     get_commit_range: GetCommitRange
     get_merge_base: GetMergeBase
+    get_identity: GetIdentity
 
     @classmethod
     def from_reader(cls, reader: IRepositoryReader) -> "QueryBus":
@@ -89,6 +92,7 @@ class QueryBus:
             get_working_tree_diff_map=GetWorkingTreeDiffMap(reader),
             get_commit_range=GetCommitRange(reader),
             get_merge_base=GetMergeBase(reader),
+            get_identity=GetIdentity(reader),
         )
 
 
@@ -146,6 +150,7 @@ class CommandBus:
     cherry_pick_continue: CherryPickContinue
     revert_abort: RevertAbort
     revert_continue: RevertContinue
+    set_identity: SetIdentity
 
     @classmethod
     def from_writer(cls, writer: IRepositoryWriter) -> "CommandBus":
@@ -202,4 +207,5 @@ class CommandBus:
             cherry_pick_continue=CherryPickContinue(writer),
             revert_abort=RevertAbort(writer),
             revert_continue=RevertContinue(writer),
+            set_identity=SetIdentity(writer),
         )
