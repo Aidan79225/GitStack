@@ -608,7 +608,7 @@ class GraphWidget(QWidget):
             if len(real_branches) == 1:
                 name = real_branches[0]
                 menu.addAction(f"Checkout branch: {name}").triggered.connect(
-                    lambda: self.checkout_branch_requested.emit(name))
+                    lambda _checked=False, n=name: self.checkout_branch_requested.emit(n))
             else:
                 sub = menu.addMenu("Checkout branch")
                 for name in real_branches:
@@ -619,7 +619,7 @@ class GraphWidget(QWidget):
             if len(local_branches) == 1:
                 name = local_branches[0]
                 menu.addAction(f"Delete branch: {name}").triggered.connect(
-                    lambda: self.delete_branch_requested.emit(name))
+                    lambda _checked=False, n=name: self.delete_branch_requested.emit(n))
             else:
                 sub = menu.addMenu("Delete branch")
                 for name in local_branches:
@@ -631,7 +631,7 @@ class GraphWidget(QWidget):
             if len(remote_branches) == 1:
                 name = remote_branches[0]
                 menu.addAction(f"Delete remote branch: {name}").triggered.connect(
-                    lambda: self._emit_remote_delete(name))
+                    lambda _checked=False, n=name: self._emit_remote_delete(n))
             else:
                 sub = menu.addMenu("Delete remote branch")
                 for name in remote_branches:
