@@ -24,7 +24,14 @@ class CommitOps:
 
     # ── METHODS COPIED VERBATIM from Pygit2Repository ─────────────────
 
-    def get_commits(self, limit: int, skip: int = 0, extra_tips: list[str] | None = None) -> list[Commit]:
+    def get_commits(
+        self,
+        limit: int,
+        skip: int = 0,
+        extra_tips: list[str] | None = None,
+        *,
+        first_parent: bool = False,
+    ) -> list[Commit]:
         if self._repo.head_is_unborn:
             return []
 
@@ -52,6 +59,9 @@ class CommitOps:
                 walker.push(pygit2.Oid(hex=tip))
             except (ValueError, Exception):
                 pass
+
+        if first_parent:
+            walker.simplify_first_parent()
 
         # Skip first N commits
         for _ in range(skip):

@@ -9,8 +9,17 @@ class GetCommitGraph:
     def __init__(self, reader: IRepositoryReader) -> None:
         self._reader = reader
 
-    def execute(self, limit: int = 200, skip: int = 0, extra_tips: list[str] | None = None) -> list[Commit]:
-        return self._reader.get_commits(limit, skip, extra_tips=extra_tips)
+    def execute(
+        self,
+        limit: int = 200,
+        skip: int = 0,
+        extra_tips: list[str] | None = None,
+        *,
+        first_parent: bool = False,
+    ) -> list[Commit]:
+        return self._reader.get_commits(
+            limit, skip, extra_tips=extra_tips, first_parent=first_parent,
+        )
 
 
 class GetBranches:
