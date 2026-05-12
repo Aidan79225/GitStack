@@ -76,6 +76,7 @@ def test_toggling_button_persists_and_reloads(qtbot):
     repo_store.set_repo_setting.assert_called_with("/repo/a", "first_parent", True)
     repo_store.save.assert_called()
     assert w._first_parent is True
+    qtbot.wait(50)  # let the background reload worker run
     # Reload is invoked via the worker thread on the queries bus; verify
     # at least one call to get_commit_graph.execute happened with first_parent=True.
     calls = queries.get_commit_graph.execute.call_args_list

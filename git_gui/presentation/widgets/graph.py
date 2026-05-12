@@ -88,6 +88,8 @@ def _btn_style() -> str:
     return (
         "QPushButton { border: none; border-radius: 4px; }"
         f"QPushButton:hover {{ background-color: {c.hover_overlay}; }}"
+        f"QPushButton:checked {{ background-color: {c.primary}; }}"
+        f"QPushButton:checked:hover {{ background-color: {c.primary}; }}"
     )
 
 
