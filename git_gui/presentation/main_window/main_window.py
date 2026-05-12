@@ -59,6 +59,9 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlow
         self._wire_remote_op_signals()
         self._wire_repo_lifecycle_signals()
 
+        # Load any persisted graph view mode for the initial repo.
+        self._graph.set_repo_path(self._repo_path)
+
         # Wire cross-widget signals
         self._working_tree.commit_completed.connect(
             lambda msg: self._log_panel.log(f'Commit: "{msg}"')
@@ -87,7 +90,7 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlow
     def _build_widgets(self) -> None:
         self._repo_ready_signals = _RepoReadySignals()
         self._sidebar = SidebarWidget(self._queries, self._commands, self._remote_tag_cache, self._repo_path)
-        self._graph = GraphWidget(self._queries, self._commands)
+        self._graph = GraphWidget(self._queries, self._commands, repo_store=self._repo_store)
         self._diff = DiffWidget(self._queries, self._commands)
         self._working_tree = WorkingTreeWidget(self._queries, self._commands, repo_path=self._repo_path)
         self._repo_list = RepoListWidget(self._repo_store)
