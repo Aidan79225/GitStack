@@ -142,3 +142,60 @@ def test_badge_color_local():
     from git_gui.presentation.widgets.ref_badge_delegate import _badge_color
     color = _badge_color("main")
     assert color.name().lower() == "#0d6efd"
+
+
+# ── First-parent mode: side parents are ignored ──────────────────────────────
+
+def test_compute_lanes_first_parent_collapses_merge_to_single_lane(qtbot):
+    """In first_parent mode, a merge commit whose second parent isn't in the
+    listing must NOT open an extra lane or draw a diagonal outgoing edge —
+    otherwise the graph paints a stub line to a ghost lane."""
+    from git_gui.presentation.models.graph_model import _compute_lanes
+    # M (merge of feature into master, second parent D not in list)
+    # B (master, M's first parent)
+    # A (initial)
+    commits = [
+        _make_commit("M", "Merge", parents=["B", "D"]),
+        _make_commit("B", "B",     parents=["A"]),
+        _make_commit("A", "A",     parents=[]),
+    ]
+    lanes = _compute_lanes(commits, first_parent=True)
+    # Every commit sits in lane 0 and never spawns a side lane.
+    assert all(ld.lane == 0 for ld in lanes), lanes
+    assert all(ld.n_lanes == 1 for ld in lanes), lanes
+    # Merge commit emits exactly one outgoing edge (to its first parent's lane).
+    assert lanes[0].edges_out == [(0, 0, lanes[0].color_idx)]
+
+
+def test_compute_lanes_full_mode_keeps_side_lane(qtbot):
+    """Sanity check: in full mode (the default), the same merge layout DOES
+    spawn an extra lane and a diagonal edge, so the toggle is what's making
+    the difference."""
+    from git_gui.presentation.models.graph_model import _compute_lanes
+    commits = [
+        _make_commit("M", "Merge", parents=["B", "D"]),
+        _make_commit("B", "B",     parents=["A"]),
+        _make_commit("A", "A",     parents=[]),
+    ]
+    lanes = _compute_lanes(commits, first_parent=False)
+    # M's row knows it has 2 edges_out (one straight, one diagonal to D's lane).
+    assert len(lanes[0].edges_out) == 2
+    assert lanes[0].n_lanes >= 2
+
+
+def test_graph_model_reload_first_parent_kwarg_recomputes_lanes(qtbot):
+    """GraphModel.reload(..., first_parent=True) must store the flag and
+    apply it on subsequent append() calls so paginated rows stay consistent
+    with the first page."""
+    model = GraphModel([], {})
+    commits = [
+        _make_commit("M", "Merge", parents=["B", "D"]),
+        _make_commit("B", "B",     parents=["A"]),
+    ]
+    model.reload(commits, {}, first_parent=True)
+    # Toggle persisted; the lane data agrees.
+    assert model._first_parent is True
+    assert all(ld.lane == 0 for ld in model._lane_data)
+    # Append uses the stored flag — the appended row must also be single-lane.
+    model.append([_make_commit("A", "A", parents=[])], {})
+    assert all(ld.lane == 0 for ld in model._lane_data)

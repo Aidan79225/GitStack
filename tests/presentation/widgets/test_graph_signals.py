@@ -44,6 +44,7 @@ def _make_widget(qtbot, commits: list[Commit] | None = None) -> GraphWidget:
     w._extra_tips = None
     w._selected_oid = None
     w._scroll_anchor_oid = None
+    w._first_parent = False
     w._stash_btn = MagicMock()
 
     # _view is used by scroll_to_oid, clear_selection, and _on_row_changed.
@@ -201,7 +202,7 @@ def test_on_reload_done_retries_when_merge_base_not_loaded(qtbot):
     w._on_reload_done(
         commits=[_make_commit("HEAD"), _make_commit("DIV")],
         branches=[], tags=[], is_dirty=False, head_oid="HEAD",
-        repo_state_info=None, merge_head=None,
+        repo_state_info=None, merge_head=None, first_parent=False,
     )
 
     # Pending state preserved; reload called again with doubled limit.
@@ -232,7 +233,7 @@ def test_on_reload_done_scrolls_when_target_and_base_both_loaded(qtbot):
             _make_commit("HEAD"), _make_commit("DIV"), _make_commit("BASE"),
         ],
         branches=[], tags=[], is_dirty=False, head_oid="HEAD",
-        repo_state_info=None, merge_head=None,
+        repo_state_info=None, merge_head=None, first_parent=False,
     )
 
     assert w._pending_scroll_oid is None
@@ -265,7 +266,7 @@ def test_on_reload_done_gives_up_at_max_reload_limit(qtbot):
     w._on_reload_done(
         commits=[_make_commit("HEAD"), _make_commit("DIV")],
         branches=[], tags=[], is_dirty=False, head_oid="HEAD",
-        repo_state_info=None, merge_head=None,
+        repo_state_info=None, merge_head=None, first_parent=False,
     )
 
     assert w._pending_scroll_oid is None
@@ -409,7 +410,7 @@ def test_on_reload_done_restores_selection_without_scrolling(qtbot):
     w._on_reload_done(
         commits=[_make_commit("HEAD"), _make_commit("OTHER")],
         branches=[], tags=[], is_dirty=False, head_oid="HEAD",
-        repo_state_info=None, merge_head=None,
+        repo_state_info=None, merge_head=None, first_parent=False,
     )
 
     sm_set_current = w._view.selectionModel().setCurrentIndex
@@ -431,7 +432,7 @@ def test_on_reload_done_skips_restore_when_selected_oid_is_none(qtbot):
     w._on_reload_done(
         commits=[_make_commit("HEAD")],
         branches=[], tags=[], is_dirty=False, head_oid="HEAD",
-        repo_state_info=None, merge_head=None,
+        repo_state_info=None, merge_head=None, first_parent=False,
     )
 
     assert w._view.selectionModel().setCurrentIndex.call_count == 0
@@ -454,7 +455,7 @@ def test_on_reload_done_skips_restore_during_retry(qtbot):
     w._on_reload_done(
         commits=[_make_commit("HEAD"), _make_commit("DIV")],
         branches=[], tags=[], is_dirty=False, head_oid="HEAD",
-        repo_state_info=None, merge_head=None,
+        repo_state_info=None, merge_head=None, first_parent=False,
     )
 
     # Retry was triggered — restore should not have run.
@@ -507,7 +508,7 @@ def test_on_reload_done_skips_base_check_when_pending_merge_base_is_none(qtbot):
     w._on_reload_done(
         commits=[_make_commit("HEAD"), _make_commit("DIV")],
         branches=[], tags=[], is_dirty=False, head_oid="HEAD",
-        repo_state_info=None, merge_head=None,
+        repo_state_info=None, merge_head=None, first_parent=False,
     )
 
     # Target loaded + base check skipped → scroll, no retry.

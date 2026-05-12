@@ -767,3 +767,115 @@ def test_set_identity_overwrites_existing(repo_path):
     name, email = impl.get_identity()
     assert name == "Bob"
     assert email == "bob@example.com"
+
+
+def test_get_commits_first_parent_excludes_side_branch_commits(repo_path):
+    """With first_parent=True, commits brought in only via a merge's
+    second parent must not appear in the listing."""
+    import pygit2
+    from git_gui.infrastructure.pygit2 import Pygit2Repository
+
+    repo = pygit2.Repository(str(repo_path))
+    sig = pygit2.Signature("T", "t@t.com")
+
+    # Layout:
+    #   A (initial, from conftest fixture)
+    #   |
+    #   B  (master)
+    #   |\
+    #   | C   (feature)
+    #   | |
+    #   | D
+    #   |/
+    #   M  (master, merge of feature into master)
+    head_a = repo.head.target
+
+    # B on master
+    (repo_path / "b.txt").write_text("b")
+    repo.index.add("b.txt"); repo.index.write()
+    tree = repo.index.write_tree()
+    b_oid = repo.create_commit("refs/heads/master", sig, sig, "B", tree, [head_a])
+
+    # Create feature branch off B
+    repo.branches.local.create("feature", repo.get(b_oid))
+
+    # C on feature
+    repo.checkout("refs/heads/feature")
+    (repo_path / "c.txt").write_text("c")
+    repo.index.add("c.txt"); repo.index.write()
+    tree = repo.index.write_tree()
+    c_oid = repo.create_commit("refs/heads/feature", sig, sig, "C", tree, [b_oid])
+
+    # D on feature
+    (repo_path / "d.txt").write_text("d")
+    repo.index.add("d.txt"); repo.index.write()
+    tree = repo.index.write_tree()
+    d_oid = repo.create_commit("refs/heads/feature", sig, sig, "D", tree, [c_oid])
+
+    # Back to master, merge feature (no-ff via explicit merge commit)
+    repo.checkout("refs/heads/master")
+    # Merge: tree = merged index; parents = [master_tip, feature_tip]
+    (repo_path / "c.txt").write_text("c")
+    (repo_path / "d.txt").write_text("d")
+    repo.index.add("c.txt"); repo.index.add("d.txt"); repo.index.write()
+    tree = repo.index.write_tree()
+    repo.create_commit("refs/heads/master", sig, sig, "M", tree, [b_oid, d_oid])
+
+    impl = Pygit2Repository(str(repo_path))
+
+    # Full walk includes everyone.
+    full = impl.get_commits(limit=100, first_parent=False)
+    full_msgs = {c.message.strip() for c in full}
+    assert {"M", "B", "C", "D", "Initial commit"}.issubset(full_msgs)
+
+    # First-parent walk hides feature-only commits (C, D) but keeps M, B.
+    fp = impl.get_commits(limit=100, first_parent=True)
+    fp_msgs = {c.message.strip() for c in fp}
+    assert "M" in fp_msgs
+    assert "B" in fp_msgs
+    assert "Initial commit" in fp_msgs
+    assert "C" not in fp_msgs
+    assert "D" not in fp_msgs
+
+
+def test_get_commits_first_parent_pagination_never_returns_side_branch(repo_path):
+    """skip composes with first_parent: paginating through the first-parent
+    line never surfaces a side-branch commit."""
+    import pygit2
+    from git_gui.infrastructure.pygit2 import Pygit2Repository
+
+    repo = pygit2.Repository(str(repo_path))
+    sig = pygit2.Signature("T", "t@t.com")
+    head_a = repo.head.target
+
+    (repo_path / "b.txt").write_text("b")
+    repo.index.add("b.txt"); repo.index.write()
+    tree = repo.index.write_tree()
+    b_oid = repo.create_commit("refs/heads/master", sig, sig, "B", tree, [head_a])
+
+    repo.branches.local.create("feature", repo.get(b_oid))
+    repo.checkout("refs/heads/feature")
+    (repo_path / "c.txt").write_text("c")
+    repo.index.add("c.txt"); repo.index.write()
+    tree = repo.index.write_tree()
+    c_oid = repo.create_commit("refs/heads/feature", sig, sig, "C", tree, [b_oid])
+    (repo_path / "d.txt").write_text("d")
+    repo.index.add("d.txt"); repo.index.write()
+    tree = repo.index.write_tree()
+    d_oid = repo.create_commit("refs/heads/feature", sig, sig, "D", tree, [c_oid])
+
+    repo.checkout("refs/heads/master")
+    (repo_path / "c.txt").write_text("c")
+    (repo_path / "d.txt").write_text("d")
+    repo.index.add("c.txt"); repo.index.add("d.txt"); repo.index.write()
+    tree = repo.index.write_tree()
+    repo.create_commit("refs/heads/master", sig, sig, "M", tree, [b_oid, d_oid])
+
+    impl = Pygit2Repository(str(repo_path))
+
+    # First-parent line is: M, B, Initial commit (3 commits total).
+    # Paginating with skip=1, limit=2 must yield exactly B and Initial commit.
+    page = impl.get_commits(limit=2, skip=1, first_parent=True)
+    msgs = [c.message.strip() for c in page]
+    assert msgs == ["B", "Initial commit"]
+    assert "C" not in msgs and "D" not in msgs

@@ -40,6 +40,7 @@ def _make_widget(qtbot) -> GraphWidget:
     w._selected_oid = None
     w._scroll_anchor_oid = None
     w._pending_search = None
+    w._first_parent = False
 
     # _stash_btn is called with setVisible; use a simple mock
     w._stash_btn = MagicMock()
@@ -61,7 +62,7 @@ def test_dirty_clean_creates_uncommitted_changes_row(qtbot):
 
     w._on_reload_done(
         commits, [], [], True, HEAD_OID,
-        _state_info(RepoState.CLEAN), None,
+        _state_info(RepoState.CLEAN), None, False,
     )
 
     assert w._model.rowCount() == 2
@@ -82,7 +83,7 @@ def test_dirty_merging_creates_merge_in_progress_row(qtbot):
 
     w._on_reload_done(
         commits, [], [], True, HEAD_OID,
-        _state_info(RepoState.MERGING), merge_head,
+        _state_info(RepoState.MERGING), merge_head, False,
     )
 
     assert w._model.rowCount() == 2
@@ -99,7 +100,7 @@ def test_dirty_rebasing_creates_rebase_in_progress_row(qtbot):
 
     w._on_reload_done(
         commits, [], [], True, HEAD_OID,
-        _state_info(RepoState.REBASING), None,
+        _state_info(RepoState.REBASING), None, False,
     )
 
     assert w._model.rowCount() == 2
@@ -116,7 +117,7 @@ def test_not_dirty_no_synthetic_row(qtbot):
 
     w._on_reload_done(
         commits, [], [], False, HEAD_OID,
-        _state_info(RepoState.CLEAN), None,
+        _state_info(RepoState.CLEAN), None, False,
     )
 
     assert w._model.rowCount() == 2  # exactly the real commits, no synthetic
@@ -127,7 +128,7 @@ def test_unborn_head_empty_graph(qtbot):
 
     w._on_reload_done(
         [], [], [], False, "",
-        _state_info(RepoState.CLEAN), None,
+        _state_info(RepoState.CLEAN), None, False,
     )
 
     assert w._model.rowCount() == 0
