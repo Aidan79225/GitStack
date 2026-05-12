@@ -111,7 +111,9 @@ def test_commit_detail_refreshes_on_theme_change(app, reset_theme):
 def test_graph_refreshes_on_theme_change(app, reset_theme):
     from git_gui.presentation.widgets.graph import GraphWidget
 
-    widget = GraphWidget(queries=MagicMock(), commands=MagicMock())
+    repo_store = MagicMock()
+    repo_store.get_repo_setting.return_value = False
+    widget = GraphWidget(queries=MagicMock(), commands=MagicMock(), repo_store=repo_store)
     calls = _spy_update(widget)
 
     mgr = get_theme_manager()

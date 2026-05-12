@@ -84,7 +84,9 @@ class TestSearchBar:
 class TestGraphSearch:
     def _make_widget(self, qtbot, commits, refs=None):
         queries, commands = _fake_buses()
-        w = GraphWidget(queries, commands)
+        repo_store = MagicMock()
+        repo_store.get_repo_setting.return_value = False
+        w = GraphWidget(queries, commands, repo_store=repo_store)
         qtbot.addWidget(w)
         w._model.reload(commits, refs or {})
         w._has_more = False  # all commits are pre-loaded in tests

@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QStyleOptionViewItem, QTableView, QVBoxLayout, QWidget,
 )
 from git_gui.domain.entities import Branch, Commit, ResetMode, Tag, WORKING_TREE_OID
+from git_gui.domain.ports import IRepoStore
 from git_gui.presentation.bus import CommandBus, QueryBus
 from git_gui.presentation.theme import get_theme_manager, connect_widget
 from git_gui.presentation.models.graph_model import GraphModel
@@ -195,7 +196,7 @@ class GraphWidget(QWidget):
     stash_requested = Signal()
     insight_requested = Signal()
 
-    def __init__(self, queries: QueryBus, commands: CommandBus, parent=None) -> None:
+    def __init__(self, queries: QueryBus, commands: CommandBus, repo_store: IRepoStore, parent=None) -> None:
         super().__init__(parent)
         self._queries = queries
         self._loaded_count = 0  # how many commits loaded (excluding synthetic)
@@ -211,6 +212,10 @@ class GraphWidget(QWidget):
         # OID at the top of the viewport before a reload, used to restore
         # the user's scroll position after auto-refresh on focus return.
         self._scroll_anchor_oid: str | None = None
+
+        self._repo_store = repo_store
+        self._repo_path: str | None = None
+        self._first_parent = False
 
         self._view = _GraphTableView()
         self._view.setSelectionBehavior(QTableView.SelectRows)
@@ -264,6 +269,17 @@ class GraphWidget(QWidget):
             header_bar.addWidget(btn)
             self._styled_buttons.append(btn)
             self._tinted_button_icons.append((btn, icon_name))
+
+        # First-parent view toggle (checkable)
+        self._first_parent_btn = QPushButton()
+        self._first_parent_btn.setFixedSize(QSize(36, 36))
+        self._first_parent_btn.setIconSize(QSize(28, 28))
+        self._first_parent_btn.setCheckable(True)
+        self._first_parent_btn.setToolTip("Show first-parent history only")
+        self._first_parent_btn.toggled.connect(self._on_first_parent_toggled)
+        header_bar.addWidget(self._first_parent_btn)
+        self._styled_buttons.append(self._first_parent_btn)
+        self._tinted_button_icons.append((self._first_parent_btn, "ic_first_parent"))
 
         header_bar.addStretch()
 
@@ -323,6 +339,32 @@ class GraphWidget(QWidget):
         else:
             self.reload()
 
+    def set_repo_path(self, path: str | None) -> None:
+        """Load the persisted first-parent setting for `path` and sync the
+        toggle button silently. Call this BEFORE set_buses on repo switches
+        so the first reload reflects the right mode."""
+        self._repo_path = path
+        if path is None:
+            new_value = False
+        else:
+            new_value = bool(self._repo_store.get_repo_setting(path, "first_parent", False))
+        self._first_parent = new_value
+        # blockSignals to avoid re-entering the toggle handler.
+        was_blocked = self._first_parent_btn.blockSignals(True)
+        try:
+            self._first_parent_btn.setChecked(new_value)
+        finally:
+            self._first_parent_btn.blockSignals(was_blocked)
+
+    def _on_first_parent_toggled(self, checked: bool) -> None:
+        self._first_parent = checked
+        if self._repo_path is not None:
+            self._repo_store.set_repo_setting(self._repo_path, "first_parent", checked)
+            self._repo_store.save()
+        # No-op if queries aren't wired up yet (empty state).
+        if self._queries is not None:
+            self.reload()
+
     def reload(self, extra_tips: list[str] | None = None, limit: int | None = None) -> None:
         if self._loading:
             return
@@ -340,13 +382,14 @@ class GraphWidget(QWidget):
         self._extra_tips = effective_tips
         self._reload_limit = effective_limit
         queries = self._queries
+        fp = self._first_parent
 
         signals = _LoadSignals()
         signals.reload_done.connect(self._on_reload_done)
         self._load_signals = signals  # prevent GC
 
         def _worker():
-            commits = queries.get_commit_graph.execute(limit=effective_limit, extra_tips=effective_tips)
+            commits = queries.get_commit_graph.execute(limit=effective_limit, extra_tips=effective_tips, first_parent=fp)
             branches = queries.get_branches.execute()
             tags = queries.get_tags.execute()
             dirty = queries.is_dirty.execute()
@@ -533,6 +576,7 @@ class GraphWidget(QWidget):
     def _load_more(self) -> None:
         self._loading = True
         queries = self._queries
+        fp = self._first_parent
         skip = self._loaded_count
 
         signals = _LoadSignals()
@@ -540,7 +584,7 @@ class GraphWidget(QWidget):
         self._load_signals = signals  # prevent GC
 
         def _worker():
-            more = queries.get_commit_graph.execute(limit=PAGE_SIZE, skip=skip, extra_tips=self._extra_tips)
+            more = queries.get_commit_graph.execute(limit=PAGE_SIZE, skip=skip, extra_tips=self._extra_tips, first_parent=fp)
             branches = queries.get_branches.execute()
             tags = queries.get_tags.execute()
             signals.append_done.emit(more, branches, tags)

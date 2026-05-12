@@ -44,6 +44,7 @@ def _make_widget(qtbot, commits: list[Commit] | None = None) -> GraphWidget:
     w._extra_tips = None
     w._selected_oid = None
     w._scroll_anchor_oid = None
+    w._first_parent = False
     w._stash_btn = MagicMock()
 
     # _view is used by scroll_to_oid, clear_selection, and _on_row_changed.
