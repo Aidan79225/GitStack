@@ -43,8 +43,13 @@ class CommitInfo:
     message: str         # first line of commit message only
 
 
-def _compute_lanes(commits: list[Commit]) -> list[LaneData]:
-    """Assign each commit a lane and compute drawing instructions for the graph column."""
+def _compute_lanes(commits: list[Commit], first_parent: bool = False) -> list[LaneData]:
+    """Assign each commit a lane and compute drawing instructions for the graph column.
+
+    With first_parent=True, only parents[0] is considered for each commit. Merge
+    commits' side parents are ignored so no lanes are opened for commits that
+    were filtered out of the listing — the result is a single mainline column.
+    """
     active: list[str | None] = []   # active[i] = OID whose line occupies lane i, or None
     colors: list[int] = []          # colors[i] = color_idx for lane i
     next_color = 0
@@ -52,7 +57,7 @@ def _compute_lanes(commits: list[Commit]) -> list[LaneData]:
 
     for commit in commits:
         oid = commit.oid
-        parents = commit.parents
+        parents = commit.parents[:1] if first_parent else commit.parents
 
         # ── 1. Find or open this commit's lane ──────────────────────────────
         edges_in: list[tuple[int, int, int]] = []
@@ -149,12 +154,14 @@ def _compute_lanes(commits: list[Commit]) -> list[LaneData]:
 
 class GraphModel(QAbstractTableModel):
     def __init__(self, commits: list[Commit], refs: dict[str, list[str]],
-                 head_branch: str | None = None, parent=None) -> None:
+                 head_branch: str | None = None, parent=None,
+                 *, first_parent: bool = False) -> None:
         super().__init__(parent)
         self._commits = commits
         self._refs = refs
         self._head_branch = head_branch
-        self._lane_data: list[LaneData] = _compute_lanes(commits)
+        self._first_parent = first_parent
+        self._lane_data: list[LaneData] = _compute_lanes(commits, first_parent)
 
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
         return len(self._commits)
@@ -191,12 +198,14 @@ class GraphModel(QAbstractTableModel):
         return None
 
     def reload(self, commits: list[Commit], refs: dict[str, list[str]],
-               head_branch: str | None = None) -> None:
+               head_branch: str | None = None,
+               *, first_parent: bool = False) -> None:
         self.beginResetModel()
         self._commits = commits
         self._refs = refs
         self._head_branch = head_branch
-        self._lane_data = _compute_lanes(commits)
+        self._first_parent = first_parent
+        self._lane_data = _compute_lanes(commits, first_parent)
         self.endResetModel()
 
     def append(self, commits: list[Commit], refs: dict[str, list[str]]) -> None:
@@ -206,5 +215,5 @@ class GraphModel(QAbstractTableModel):
         self.beginInsertRows(QModelIndex(), start, start + len(commits) - 1)
         self._commits.extend(commits)
         self._refs.update(refs)
-        self._lane_data = _compute_lanes(self._commits)
+        self._lane_data = _compute_lanes(self._commits, self._first_parent)
         self.endInsertRows()

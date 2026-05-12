@@ -61,8 +61,10 @@ class _GraphTableView(QTableView):
 
 
 class _LoadSignals(QObject):
-    reload_done = Signal(list, list, list, bool, str, object, object)  # commits, branches, tags, is_dirty, head_oid, repo_state, merge_head
-    append_done = Signal(list, list, list)              # more_commits, branches, tags
+    # commits, branches, tags, is_dirty, head_oid, repo_state, merge_head, first_parent
+    reload_done = Signal(list, list, list, bool, str, object, object, bool)
+    # more_commits, branches, tags, first_parent
+    append_done = Signal(list, list, list, bool)
 
 
 _ARTS = get_resource_path("arts")
@@ -398,7 +400,7 @@ class GraphWidget(QWidget):
             head_oid = queries.get_head_oid.execute() or ""
             repo_state = queries.get_repo_state.execute()
             merge_head = queries.get_merge_head.execute()
-            signals.reload_done.emit(commits, branches, tags, dirty, head_oid, repo_state, merge_head)
+            signals.reload_done.emit(commits, branches, tags, dirty, head_oid, repo_state, merge_head, fp)
 
         threading.Thread(target=_worker, daemon=True).start()
 
@@ -431,10 +433,18 @@ class GraphWidget(QWidget):
 
     def _on_reload_done(self, commits: list[Commit], branches: list[Branch],
                         tags: list[Tag], is_dirty: bool, head_oid: str,
-                        repo_state_info, merge_head: str | None) -> None:
+                        repo_state_info, merge_head: str | None,
+                        first_parent: bool) -> None:
         self._loading = False
         self._stash_btn.setVisible(is_dirty)
         if self._queries is None:
+            return
+
+        # If the user toggled the view mode while this load was in-flight,
+        # the in-flight reload() call was dropped by the `if self._loading`
+        # guard. Pick up the change now by triggering another reload.
+        if first_parent != self._first_parent:
+            self.reload()
             return
 
         self._loaded_count = len(commits)
@@ -475,7 +485,7 @@ class GraphWidget(QWidget):
             )
             all_commits.insert(0, synthetic)
 
-        self._model.reload(all_commits, refs, head_branch)
+        self._model.reload(all_commits, refs, head_branch, first_parent=first_parent)
 
         retrying = False
         if self._pending_scroll_oid:
@@ -589,13 +599,20 @@ class GraphWidget(QWidget):
             more = queries.get_commit_graph.execute(limit=PAGE_SIZE, skip=skip, extra_tips=self._extra_tips, first_parent=fp)
             branches = queries.get_branches.execute()
             tags = queries.get_tags.execute()
-            signals.append_done.emit(more, branches, tags)
+            signals.append_done.emit(more, branches, tags, fp)
 
         threading.Thread(target=_worker, daemon=True).start()
 
-    def _on_append_done(self, more: list[Commit], branches: list[Branch], tags: list[Tag]) -> None:
+    def _on_append_done(self, more: list[Commit], branches: list[Branch], tags: list[Tag],
+                        first_parent: bool) -> None:
         self._loading = False
         if self._queries is None:
+            return
+
+        # User toggled mid-flight: discard the appended page (it was fetched
+        # in the wrong mode) and re-run a full reload in the new mode.
+        if first_parent != self._first_parent:
+            self.reload()
             return
 
         if not more:
