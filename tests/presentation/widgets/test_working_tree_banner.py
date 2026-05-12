@@ -1,5 +1,7 @@
 """Tests for the conflict banner in WorkingTreeWidget."""
 from __future__ import annotations
+from unittest.mock import MagicMock
+
 import pytest
 from PySide6.QtWidgets import QWidget
 
@@ -7,7 +9,12 @@ from git_gui.presentation.widgets.working_tree import WorkingTreeWidget
 
 
 def _make_widget(qtbot) -> WorkingTreeWidget:
-    """Create a WorkingTreeWidget with minimal init bypass."""
+    """Create a WorkingTreeWidget with minimal init bypass.
+
+    Stubs `_queries` with a configured identity so `_on_commit`'s identity
+    check passes; tests that exercise the missing-identity path override
+    `get_identity.execute.return_value` themselves.
+    """
     w = WorkingTreeWidget.__new__(WorkingTreeWidget)
     QWidget.__init__(w)
     from PySide6.QtWidgets import QHBoxLayout, QLabel, QPlainTextEdit, QPushButton
@@ -21,6 +28,9 @@ def _make_widget(qtbot) -> WorkingTreeWidget:
     banner_layout.addWidget(w._btn_abort)
     w._conflict_banner.setVisible(False)
     w._btn_abort.clicked.connect(w._on_abort_clicked)
+    w._queries = MagicMock()
+    w._queries.get_identity.execute.return_value = ("Alice", "alice@example.com")
+    w._commands = MagicMock()
     qtbot.addWidget(w)
     return w
 
@@ -134,3 +144,85 @@ def test_commit_emits_revert_continue(qtbot):
     w.revert_continue_requested.connect(lambda: received.append("rv_cont"))
     w._on_commit()
     assert received == ["rv_cont"]
+
+
+# --------------------------------------------------------------------
+# Identity prompt during merge/rebase/cherry-pick/revert "continue".
+# --------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "state, signal_name",
+    [
+        ("MERGING", "merge_continue_requested"),
+        ("REBASING", "rebase_continue_requested"),
+        ("CHERRY_PICKING", "cherry_pick_continue_requested"),
+        ("REVERTING", "revert_continue_requested"),
+    ],
+)
+def test_continue_states_prompt_for_missing_identity(qtbot, monkeypatch, state, signal_name):
+    """When identity is unset, _on_commit must open IdentityDialog before
+    emitting the state-specific continue signal — for every state."""
+    w = _make_widget(qtbot)
+    w._queries.get_identity.execute.return_value = ("", "")
+    w.update_conflict_banner(state)
+
+    dialog_opened = []
+
+    class _FakeDialog:
+        def __init__(self, *_a, **_kw):
+            dialog_opened.append(True)
+        def exec(self):
+            from PySide6.QtWidgets import QDialog
+            return QDialog.Accepted
+        def values(self):
+            return ("Bob", "bob@example.com", False)
+
+    monkeypatch.setattr(
+        "git_gui.presentation.dialogs.identity_dialog.IdentityDialog",
+        _FakeDialog,
+    )
+
+    received = []
+    getattr(w, signal_name).connect(lambda *_a: received.append(True))
+    w._on_commit()
+
+    assert dialog_opened == [True]
+    w._commands.set_identity.execute.assert_called_once_with("Bob", "bob@example.com", False)
+    assert received == [True]
+
+
+@pytest.mark.parametrize(
+    "state, signal_name",
+    [
+        ("MERGING", "merge_continue_requested"),
+        ("REBASING", "rebase_continue_requested"),
+        ("CHERRY_PICKING", "cherry_pick_continue_requested"),
+        ("REVERTING", "revert_continue_requested"),
+    ],
+)
+def test_continue_states_skip_when_identity_dialog_cancelled(qtbot, monkeypatch, state, signal_name):
+    """If the user cancels the identity dialog, the continue signal must
+    NOT be emitted — no commit attempt."""
+    w = _make_widget(qtbot)
+    w._queries.get_identity.execute.return_value = ("", "")
+    w.update_conflict_banner(state)
+
+    class _CancelDialog:
+        def __init__(self, *_a, **_kw): pass
+        def exec(self):
+            from PySide6.QtWidgets import QDialog
+            return QDialog.Rejected
+        def values(self):
+            return ("", "", False)
+
+    monkeypatch.setattr(
+        "git_gui.presentation.dialogs.identity_dialog.IdentityDialog",
+        _CancelDialog,
+    )
+
+    received = []
+    getattr(w, signal_name).connect(lambda *_a: received.append(True))
+    w._on_commit()
+
+    assert received == []
+    w._commands.set_identity.execute.assert_not_called()

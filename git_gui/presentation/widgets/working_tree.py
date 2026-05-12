@@ -302,6 +302,14 @@ class WorkingTreeWidget(QWidget):
     def _on_commit(self) -> None:
         state = getattr(self, "_current_state", "CLEAN")
         msg = self._msg_edit.toPlainText().strip()
+        if state == "CLEAN" and not msg:
+            self.commit_failed.emit("Commit message is empty")
+            return
+
+        # Every path below creates a commit, so identity is required.
+        if not self._ensure_identity():
+            return
+
         if state == "MERGING":
             self.merge_continue_requested.emit(msg)
             return
@@ -314,25 +322,6 @@ class WorkingTreeWidget(QWidget):
         if state == "REVERTING":
             self.revert_continue_requested.emit()
             return
-        if not msg:
-            self.commit_failed.emit("Commit message is empty")
-            return
-
-        # Identity check: if user.name or user.email is missing, prompt
-        # the user inline rather than committing with a placeholder.
-        name, email = self._queries.get_identity.execute()
-        if not name or not email:
-            from git_gui.presentation.dialogs.identity_dialog import IdentityDialog
-            from PySide6.QtWidgets import QDialog
-            dlg = IdentityDialog(name, email, parent=self)
-            if dlg.exec() != QDialog.Accepted:
-                return
-            new_name, new_email, global_ = dlg.values()
-            try:
-                self._commands.set_identity.execute(new_name, new_email, global_)
-            except Exception as e:
-                self.commit_failed.emit(f"Failed to save identity: {e}")
-                return
 
         try:
             self._commands.create_commit.execute(msg)
@@ -345,6 +334,29 @@ class WorkingTreeWidget(QWidget):
         self.commit_completed.emit(first_line)
         self.reload_requested.emit()
         self.reload()
+
+    def _ensure_identity(self) -> bool:
+        """Prompt for git identity if missing.
+
+        Returns True when identity is already configured or the user
+        successfully sets it via the prompt; False if the user cancels
+        or saving fails (in which case commit_failed has been emitted).
+        """
+        name, email = self._queries.get_identity.execute()
+        if name and email:
+            return True
+        from git_gui.presentation.dialogs.identity_dialog import IdentityDialog
+        from PySide6.QtWidgets import QDialog
+        dlg = IdentityDialog(name, email, parent=self)
+        if dlg.exec() != QDialog.Accepted:
+            return False
+        new_name, new_email, global_ = dlg.values()
+        try:
+            self._commands.set_identity.execute(new_name, new_email, global_)
+        except Exception as e:
+            self.commit_failed.emit(f"Failed to save identity: {e}")
+            return False
+        return True
 
     def _on_files_changed(self) -> None:
         # Remember selected path before reload clears selection
