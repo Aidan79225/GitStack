@@ -3,7 +3,7 @@ import sys
 import pygit2
 from pathlib import Path
 from PySide6.QtCore import qInstallMessageHandler
-from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
+from PySide6.QtWidgets import QApplication
 from git_gui.infrastructure.pygit2 import Pygit2Repository
 from git_gui.infrastructure.repo_store import JsonRepoStore
 from git_gui.infrastructure.remote_tag_cache import JsonRemoteTagCache
@@ -15,28 +15,6 @@ from git_gui.logging_setup import setup_logging
 
 def _is_git_repo(path: str) -> bool:
     return pygit2.discover_repository(path) is not None
-
-
-def _pick_repo() -> str:
-    while True:
-        dialog = QFileDialog()
-        dialog.setWindowTitle("Open Repository")
-        dialog.setFileMode(QFileDialog.Directory)
-        dialog.setOption(QFileDialog.ShowDirsOnly, True)
-        if dialog.exec() != QFileDialog.Accepted:
-            return ""
-        dirs = dialog.selectedFiles()
-        if not dirs:
-            return ""
-        path = dirs[0]
-        if _is_git_repo(path):
-            return path
-        QMessageBox.warning(
-            None,
-            "Not a Git Repository",
-            "The selected folder is not a Git repository.\n"
-            "Please choose a folder that contains a Git repository.",
-        )
 
 
 def _find_valid_repo(repo_store: JsonRepoStore) -> str | None:
@@ -89,18 +67,14 @@ def main() -> None:
 
     repo_path = _find_valid_repo(repo_store)
 
-    if not repo_path:
-        repo_path = _pick_repo()
-        if not repo_path:
-            sys.exit(0)
+    if repo_path and repo_path not in repo_store.get_open_repos():
         repo_store.add_open(repo_path)
         repo_store.save()
 
-    if repo_path not in repo_store.get_open_repos():
-        repo_store.add_open(repo_path)
-        repo_store.save()
-
-    queries, commands = _open_session(repo_path)
+    if repo_path:
+        queries, commands = _open_session(repo_path)
+    else:
+        queries, commands = None, None
 
     window = MainWindow(
         queries, commands, repo_store, remote_tag_cache, repo_path,
