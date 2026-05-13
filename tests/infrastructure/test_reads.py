@@ -838,6 +838,33 @@ def test_get_commits_first_parent_excludes_side_branch_commits(repo_path):
     assert "D" not in fp_msgs
 
 
+def test_get_commit_stats_handles_non_ascii_author_and_path(repo_path):
+    """Non-ASCII author names and file paths must not break the parser
+    regardless of the platform's default locale encoding (Windows defaults
+    to cp1252; git emits UTF-8). Regression: text=True without an explicit
+    encoding raises UnicodeDecodeError on Windows, killing Insight silently."""
+    import pygit2
+    from git_gui.infrastructure.pygit2 import Pygit2Repository
+
+    repo = pygit2.Repository(str(repo_path))
+    sig = pygit2.Signature("田中太郎", "tanaka@example.com")
+    (repo_path / "日本語.txt").write_text("hello", encoding="utf-8")
+    repo.index.add("日本語.txt"); repo.index.write()
+    tree = repo.index.write_tree()
+    head = repo.head.target
+    repo.create_commit("refs/heads/master", sig, sig, "feat: 中文 message", tree, [head])
+
+    impl = Pygit2Repository(str(repo_path))
+    stats = list(impl.get_commit_stats())
+
+    # The crucial assertion is that no exception was raised — the parser
+    # decoded UTF-8 correctly. As a bonus, the Japanese author survives
+    # the round-trip unmangled.
+    assert len(stats) >= 1
+    authors = [s.author for s in stats]
+    assert any("田中太郎" in a for a in authors), authors
+
+
 def test_get_commits_first_parent_pagination_never_returns_side_branch(repo_path):
     """skip composes with first_parent: paginating through the first-parent
     line never surfaces a side-branch commit."""

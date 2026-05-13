@@ -178,7 +178,15 @@ class CommitOps:
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
-                text=True,
+                # Force UTF-8 decoding. Git emits UTF-8 by default regardless
+                # of the platform's locale; relying on `text=True` alone uses
+                # locale.getpreferredencoding() (e.g. cp1252 on Windows), which
+                # raises UnicodeDecodeError the moment a commit author, path,
+                # or message contains non-ASCII characters outside that
+                # encoding's range — causing Insight to silently produce zero
+                # rows on otherwise valid repos.
+                encoding="utf-8",
+                errors="replace",
                 bufsize=1,
                 cwd=self._repo.workdir,
                 env=self._git_env,
