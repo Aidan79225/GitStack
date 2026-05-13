@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 import threading
 from datetime import datetime, timedelta, timezone
 from PySide6.QtCore import QDate, QObject, Qt, Signal
@@ -9,6 +10,8 @@ from PySide6.QtWidgets import (
 )
 from git_gui.presentation.bus import QueryBus
 from git_gui.presentation.theme import get_theme_manager, connect_widget
+
+logger = logging.getLogger(__name__)
 
 
 # ── Style constants ──────────────────────────────────────────────────────────
@@ -42,6 +45,7 @@ class _LoadSignals(QObject):
     # generation, author_commits, author_added, author_deleted,
     # file_counts, files_changed, total_commits
     cancelled = Signal(int)  # generation
+    failed = Signal(int, str)  # generation, message
 
 
 class _SummaryCard(QFrame):
@@ -351,6 +355,7 @@ class InsightDialog(QDialog):
         signals.progress.connect(self._on_progress)
         signals.done.connect(self._on_loaded)
         signals.cancelled.connect(self._on_cancelled)
+        signals.failed.connect(self._on_failed)
         self._load_signals = signals  # prevent GC
 
         queries = self._queries
@@ -382,8 +387,14 @@ class InsightDialog(QDialog):
                     if now - last_progress >= 0.25:
                         signals.progress.emit(total, now - started)
                         last_progress = now
-            except Exception:
-                pass
+            except Exception as e:
+                # Don't silently produce an empty-looking result — the user
+                # needs to know whether Insight saw nothing or whether it
+                # crashed mid-walk.
+                logger.exception("Insight worker failed")
+                if not cancel_event.is_set():
+                    signals.failed.emit(generation, f"{type(e).__name__}: {e}")
+                    return
 
             if cancel_event.is_set():
                 signals.cancelled.emit(generation)
@@ -423,6 +434,13 @@ class InsightDialog(QDialog):
         # shows that we acknowledged it; closeEvent will tear the dialog
         # down anyway.
         self._loading_label.setText("Cancelled.")
+
+    def _on_failed(self, generation: int, message: str) -> None:
+        if generation != self._load_generation:
+            return
+        self._loading_label.setText(f"Insight failed: {message}")
+        self._loading_label.setVisible(True)
+        self._scroll.setVisible(False)
 
     def _on_progress(self, total: int, elapsed: float) -> None:
         # Format with thousands separator for readability on huge repos.
