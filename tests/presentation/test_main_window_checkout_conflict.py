@@ -63,3 +63,19 @@ def test_no_conflict_falls_through(qtbot):
     with patch.object(win, "_reload"):
         win._on_checkout_branch("origin/feature")
     commands.checkout_remote_branch.execute.assert_called_once_with("origin/feature")
+
+
+def test_local_branch_with_slash_uses_local_checkout(qtbot):
+    win = _make_window(qtbot)
+    queries, commands = _wire_buses(win)
+    queries.get_branches.execute.return_value = [
+        Branch("feature/android-pr-quality-checks", False, False, "abc"),
+        Branch("origin/feature/android-pr-quality-checks", True, False, "abc"),
+    ]
+    with patch.object(win, "_reload"):
+        win._on_checkout_branch("feature/android-pr-quality-checks")
+    commands.checkout.execute.assert_called_once_with(
+        "feature/android-pr-quality-checks"
+    )
+    commands.checkout_remote_branch.execute.assert_not_called()
+    commands.reset_branch_to_ref.execute.assert_not_called()

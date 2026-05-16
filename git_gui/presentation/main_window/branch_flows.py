@@ -79,13 +79,15 @@ class BranchFlowsMixin:
 
     def _on_checkout_branch(self, name: str) -> None:
         try:
-            if "/" in name:
-                local_name = name.split("/", 1)[1]
-                existing = {
-                    b.name for b in self._queries.get_branches.execute()
-                    if not b.is_remote
-                }
-                if local_name in existing:
+            all_branches = self._queries.get_branches.execute()
+            local_names = {b.name for b in all_branches if not b.is_remote}
+
+            if name in local_names:
+                self._commands.checkout.execute(name)
+                self._log_panel.log(f"Checkout branch: {name}")
+            else:
+                local_name = name.split("/", 1)[1] if "/" in name else name
+                if local_name in local_names:
                     reply = QMessageBox.question(
                         self,
                         "Local branch exists",
@@ -103,9 +105,6 @@ class BranchFlowsMixin:
                 else:
                     self._commands.checkout_remote_branch.execute(name)
                     self._log_panel.log(f"Checkout remote: {name} → local {local_name}")
-            else:
-                self._commands.checkout.execute(name)
-                self._log_panel.log(f"Checkout branch: {name}")
         except Exception as e:
             self._log_panel.expand()
             self._log_panel.log_error(f"Checkout {name} — ERROR: {e}")
