@@ -1,16 +1,19 @@
 import logging
 import sys
-import pygit2
 from pathlib import Path
+
+import pygit2
 from PySide6.QtCore import qInstallMessageHandler
 from PySide6.QtWidgets import QApplication
+
 from git_gui.infrastructure.pygit2 import Pygit2Repository
-from git_gui.infrastructure.repo_store import JsonRepoStore
 from git_gui.infrastructure.remote_tag_cache import JsonRemoteTagCache
+from git_gui.infrastructure.repo_store import JsonRepoStore
+from git_gui.logging_setup import setup_logging
+from git_gui.observability import init_crash_reporting
 from git_gui.presentation.bus import CommandBus, QueryBus
 from git_gui.presentation.main_window import MainWindow
 from git_gui.presentation.theme import ThemeManager, set_theme_manager
-from git_gui.logging_setup import setup_logging
 
 
 def _is_git_repo(path: str) -> bool:
@@ -54,6 +57,7 @@ def _qt_message_filter(mode, context, message):
 
 def main() -> None:
     setup_logging()
+    init_crash_reporting()
     qInstallMessageHandler(_qt_message_filter)
     app = QApplication(sys.argv)
     app.setApplicationName("GitCrisp")
@@ -77,7 +81,11 @@ def main() -> None:
         queries, commands = None, None
 
     window = MainWindow(
-        queries, commands, repo_store, remote_tag_cache, repo_path,
+        queries,
+        commands,
+        repo_store,
+        remote_tag_cache,
+        repo_path,
         session_factory=_open_session,
     )
     window.show()
