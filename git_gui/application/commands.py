@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from git_gui.domain.entities import Branch, Commit, MergeStrategy, ResetMode
 from git_gui.domain.ports import IRepositoryWriter
 
@@ -119,7 +120,12 @@ class Merge:
     def __init__(self, writer: IRepositoryWriter) -> None:
         self._writer = writer
 
-    def execute(self, branch: str, strategy: MergeStrategy = MergeStrategy.ALLOW_FF, message: str | None = None) -> None:
+    def execute(
+        self,
+        branch: str,
+        strategy: MergeStrategy = MergeStrategy.ALLOW_FF,
+        message: str | None = None,
+    ) -> None:
         self._writer.merge(branch, strategy, message)
 
 
@@ -135,7 +141,9 @@ class MergeCommit:
     def __init__(self, writer: IRepositoryWriter) -> None:
         self._writer = writer
 
-    def execute(self, oid: str, strategy: MergeStrategy = MergeStrategy.ALLOW_FF, message: str | None = None) -> None:
+    def execute(
+        self, oid: str, strategy: MergeStrategy = MergeStrategy.ALLOW_FF, message: str | None = None
+    ) -> None:
         self._writer.merge_commit(oid, strategy, message)
 
 

@@ -1,9 +1,9 @@
 """Tests for commit error surfacing in WorkingTreeWidget._on_commit."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
 from PySide6.QtWidgets import QPlainTextEdit, QWidget
 
 from git_gui.presentation.widgets.working_tree import WorkingTreeWidget

@@ -1,4 +1,3 @@
-from pathlib import Path
 from git_gui.presentation.theme import settings as s
 
 

@@ -1,4 +1,5 @@
 """Tests for FileNavigatorWidget."""
+
 from __future__ import annotations
 
 import pytest
@@ -143,6 +144,7 @@ def test_set_active_file_none_marks_all_pill(navigator):
 
 def test_model_reset_rebuilds_pill_strip(navigator, qtbot):
     from git_gui.domain.entities import FileStatus
+
     widget, model = navigator
     widget.set_mode(NavMode.PILL)
 
@@ -188,10 +190,7 @@ def test_set_active_file_unknown_path_falls_back_to_all(navigator):
 
 
 def _make_files(n: int) -> list[FileStatus]:
-    return [
-        FileStatus(path=f"f{i}.py", status="staged", delta="modified")
-        for i in range(n)
-    ]
+    return [FileStatus(path=f"f{i}.py", status="staged", delta="modified") for i in range(n)]
 
 
 def test_list_mode_sizehint_fits_few_rows(qtbot):

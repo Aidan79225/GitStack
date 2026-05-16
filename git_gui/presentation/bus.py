@@ -1,36 +1,93 @@
 # git_gui/presentation/bus.py
 from __future__ import annotations
+
 from dataclasses import dataclass
-from git_gui.domain.ports import IRepositoryReader, IRepositoryWriter
-from git_gui.application.queries import (
-    GetCommitGraph, GetBranches, GetStashes, GetTags, GetRemoteTags, GetCommitStats,
-    GetCommitFiles, GetFileDiff, GetStagedDiff, GetWorkingTree,
-    GetCommitDetail, IsDirty, GetHeadOid,
-    ListRemotes, ListSubmodules, ListLocalBranchesWithUpstream,
-    GetRepoState, IsAncestor, GetMergeAnalysis,
-    GetMergeHead, GetMergeMsg, HasUnresolvedConflicts,
-    GetCommitDiffMap, GetWorkingTreeDiffMap, GetCommitRange, GetMergeBase,
-    GetIdentity,
-)
+
 from git_gui.application.commands import (
-    StageFiles, UnstageFiles, CreateCommit,
-    Checkout, CheckoutCommit, CheckoutRemoteBranch, CreateBranch, DeleteBranch, DeleteRemoteBranch,
-    CreateTag, DeleteTag, PushTag, DeleteRemoteTag,
-    Merge, Rebase, Push, ForcePush, Pull, Fetch,
-    Stash, PopStash, ApplyStash, DropStash,
-    StageHunk, UnstageHunk, FetchAllPrune,
-    DiscardFile, DiscardHunk,
-    AddRemote, RemoveRemote, RenameRemote, SetRemoteUrl,
-    AddSubmodule, RemoveSubmodule, SetSubmoduleUrl,
-    SetBranchUpstream, UnsetBranchUpstream, RenameBranch, ResetBranchToRef,
-    MergeCommit, RebaseOntoCommit,
-    MergeAbort, RebaseAbort, RebaseContinue,
+    AddRemote,
+    AddSubmodule,
+    ApplyStash,
+    Checkout,
+    CheckoutCommit,
+    CheckoutRemoteBranch,
+    CherryPickAbort,
+    CherryPickCommit,
+    CherryPickContinue,
+    CreateBranch,
+    CreateCommit,
+    CreateTag,
+    DeleteBranch,
+    DeleteRemoteBranch,
+    DeleteRemoteTag,
+    DeleteTag,
+    DiscardFile,
+    DiscardHunk,
+    DropStash,
+    Fetch,
+    FetchAllPrune,
+    ForcePush,
     InteractiveRebase,
-    CherryPickCommit, RevertCommit, ResetBranch,
-    CherryPickAbort, CherryPickContinue,
-    RevertAbort, RevertContinue,
+    Merge,
+    MergeAbort,
+    MergeCommit,
+    PopStash,
+    Pull,
+    Push,
+    PushTag,
+    Rebase,
+    RebaseAbort,
+    RebaseContinue,
+    RebaseOntoCommit,
+    RemoveRemote,
+    RemoveSubmodule,
+    RenameBranch,
+    RenameRemote,
+    ResetBranch,
+    ResetBranchToRef,
+    RevertAbort,
+    RevertCommit,
+    RevertContinue,
+    SetBranchUpstream,
     SetIdentity,
+    SetRemoteUrl,
+    SetSubmoduleUrl,
+    StageFiles,
+    StageHunk,
+    Stash,
+    UnsetBranchUpstream,
+    UnstageFiles,
+    UnstageHunk,
 )
+from git_gui.application.queries import (
+    GetBranches,
+    GetCommitDetail,
+    GetCommitDiffMap,
+    GetCommitFiles,
+    GetCommitGraph,
+    GetCommitRange,
+    GetCommitStats,
+    GetFileDiff,
+    GetHeadOid,
+    GetIdentity,
+    GetMergeAnalysis,
+    GetMergeBase,
+    GetMergeHead,
+    GetMergeMsg,
+    GetRemoteTags,
+    GetRepoState,
+    GetStagedDiff,
+    GetStashes,
+    GetTags,
+    GetWorkingTree,
+    GetWorkingTreeDiffMap,
+    HasUnresolvedConflicts,
+    IsAncestor,
+    IsDirty,
+    ListLocalBranchesWithUpstream,
+    ListRemotes,
+    ListSubmodules,
+)
+from git_gui.domain.ports import IRepositoryReader, IRepositoryWriter
 
 
 @dataclass
@@ -64,7 +121,7 @@ class QueryBus:
     get_identity: GetIdentity
 
     @classmethod
-    def from_reader(cls, reader: IRepositoryReader) -> "QueryBus":
+    def from_reader(cls, reader: IRepositoryReader) -> QueryBus:
         return cls(
             get_commit_graph=GetCommitGraph(reader),
             get_branches=GetBranches(reader),
@@ -153,7 +210,7 @@ class CommandBus:
     set_identity: SetIdentity
 
     @classmethod
-    def from_writer(cls, writer: IRepositoryWriter) -> "CommandBus":
+    def from_writer(cls, writer: IRepositoryWriter) -> CommandBus:
         return cls(
             stage_files=StageFiles(writer),
             unstage_files=UnstageFiles(writer),

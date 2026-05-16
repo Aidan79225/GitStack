@@ -1,6 +1,8 @@
 """Debounce behaviour of RepoChangeDetector — events within 200 ms coalesce
 into a single reload callback."""
+
 from __future__ import annotations
+
 import pytest
 
 from git_gui.presentation.services.repo_change_detector import RepoChangeDetector

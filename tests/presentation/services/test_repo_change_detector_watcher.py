@@ -1,6 +1,7 @@
 """QFileSystemWatcher set-up and fileChanged → reload propagation."""
+
 from __future__ import annotations
-import pytest
+
 from PySide6.QtCore import qInstallMessageHandler
 
 from git_gui.presentation.services.repo_change_detector import RepoChangeDetector
@@ -18,10 +19,9 @@ def test_detector_watches_git_head_and_refs_heads(qtbot, repo_path):
     assert any(f.endswith("HEAD") for f in watched_files), (
         f"expected HEAD in watched files, got {watched_files}"
     )
-    assert any(dir_.endswith("refs/heads") or dir_.endswith("refs\\heads")
-               for dir_ in watched_dirs), (
-        f"expected refs/heads in watched dirs, got {watched_dirs}"
-    )
+    assert any(
+        dir_.endswith("refs/heads") or dir_.endswith("refs\\heads") for dir_ in watched_dirs
+    ), f"expected refs/heads in watched dirs, got {watched_dirs}"
 
 
 def test_rewriting_head_triggers_reload_after_debounce(qtbot, repo_path):
@@ -38,9 +38,7 @@ def test_rewriting_head_triggers_reload_after_debounce(qtbot, repo_path):
         head_path.write_text("ref: refs/heads/other\n", encoding="utf-8")
 
     qtbot.wait(300)  # let the 200 ms debounce fire
-    assert len(calls) >= 1, (
-        "reload callback should fire after .git/HEAD is rewritten"
-    )
+    assert len(calls) >= 1, "reload callback should fire after .git/HEAD is rewritten"
 
 
 def test_missing_git_dir_does_not_crash(qtbot, tmp_path):

@@ -1,5 +1,6 @@
 # git_gui/presentation/main_window/right_panel.py
 from __future__ import annotations
+
 from git_gui.domain.entities import WORKING_TREE_OID
 from git_gui.presentation.widgets.clone_dialog import CloneDialog
 from git_gui.presentation.widgets.insight_dialog import InsightDialog
@@ -73,5 +74,6 @@ class RightPanelMixin:
         if not self._repo_path:
             return
         import os
+
         abs_path = os.path.abspath(os.path.join(self._repo_path, rel_path))
         self._on_submodule_open_requested(abs_path)

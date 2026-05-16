@@ -6,6 +6,7 @@ For each widget:
   3. Call get_theme_manager().set_mode("light") then set_mode("dark").
   4. Assert update() was called and the widget did not raise.
 """
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -164,9 +165,12 @@ def test_log_panel_refreshes_on_theme_change(app, reset_theme):
 
 def test_diff_block_hunk_rerenders_on_theme_change(app, reset_theme):
     from PySide6.QtWidgets import QPlainTextEdit
+
     from git_gui.domain.entities import Hunk
     from git_gui.presentation.widgets.diff_block import (
-        add_hunk_widget, make_diff_formats, make_file_block,
+        add_hunk_widget,
+        make_diff_formats,
+        make_file_block,
     )
 
     frame, inner = make_file_block("example.py")

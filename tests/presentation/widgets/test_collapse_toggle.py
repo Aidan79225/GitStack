@@ -1,4 +1,5 @@
 """Tests for _CollapseToggle (reusable chevron toggle button)."""
+
 from __future__ import annotations
 
 from PySide6.QtCore import Qt

@@ -1,7 +1,10 @@
 # git_gui/presentation/models/graph_model.py
 from __future__ import annotations
+
 from dataclasses import dataclass, field
+
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
+
 from git_gui.domain.entities import Commit
 
 COLUMNS = ["graph", "info"]
@@ -20,9 +23,9 @@ LANE_COLORS = [
 
 @dataclass
 class LaneData:
-    lane: int                                    # which lane the commit node sits in
-    color_idx: int                               # index into LANE_COLORS for this lane
-    n_lanes: int                                 # total lane count (used to size column)
+    lane: int  # which lane the commit node sits in
+    color_idx: int  # index into LANE_COLORS for this lane
+    n_lanes: int  # total lane count (used to size column)
     lines: list[tuple[int, int, int]] = field(default_factory=list)
     # (top_lane, bot_lane, color_idx) — pass-through lines spanning full row height
     edges_in: list[tuple[int, int, int]] = field(default_factory=list)
@@ -36,11 +39,11 @@ class LaneData:
 @dataclass
 class CommitInfo:
     author: str
-    timestamp: str       # pre-formatted "YYYY-MM-DD HH:MM"
-    short_oid: str       # commit.oid[:8]
+    timestamp: str  # pre-formatted "YYYY-MM-DD HH:MM"
+    short_oid: str  # commit.oid[:8]
     branch_names: list[str]
     head_branch: str | None  # name of the HEAD branch (green badge), None if detached
-    message: str         # first line of commit message only
+    message: str  # first line of commit message only
 
 
 def _compute_lanes(commits: list[Commit], first_parent: bool = False) -> list[LaneData]:
@@ -50,8 +53,8 @@ def _compute_lanes(commits: list[Commit], first_parent: bool = False) -> list[La
     commits' side parents are ignored so no lanes are opened for commits that
     were filtered out of the listing — the result is a single mainline column.
     """
-    active: list[str | None] = []   # active[i] = OID whose line occupies lane i, or None
-    colors: list[int] = []          # colors[i] = color_idx for lane i
+    active: list[str | None] = []  # active[i] = OID whose line occupies lane i, or None
+    colors: list[int] = []  # colors[i] = color_idx for lane i
     next_color = 0
     result: list[LaneData] = []
 
@@ -127,7 +130,7 @@ def _compute_lanes(commits: list[Commit], first_parent: bool = False) -> list[La
         # ── 4. Outgoing edges from the commit node ──────────────────────────
         edges_out: list[tuple[int, int, int]] = []
         if parents:
-            edges_out.append((my_lane, my_lane, color_idx))   # first parent straight down
+            edges_out.append((my_lane, my_lane, color_idx))  # first parent straight down
         for target_lane in extra_parent_lanes:
             edges_out.append((my_lane, target_lane, color_idx))  # merge diagonals
 
@@ -137,15 +140,17 @@ def _compute_lanes(commits: list[Commit], first_parent: bool = False) -> list[La
             new_colors.pop()
 
         n_lanes = max(len(new_active), my_lane + 1, 1)
-        result.append(LaneData(
-            lane=my_lane,
-            color_idx=color_idx,
-            n_lanes=n_lanes,
-            lines=lines,
-            edges_in=edges_in,
-            edges_out=edges_out,
-            has_incoming=has_incoming,
-        ))
+        result.append(
+            LaneData(
+                lane=my_lane,
+                color_idx=color_idx,
+                n_lanes=n_lanes,
+                lines=lines,
+                edges_in=edges_in,
+                edges_out=edges_out,
+                has_incoming=has_incoming,
+            )
+        )
         active = new_active
         colors = new_colors
 
@@ -153,9 +158,15 @@ def _compute_lanes(commits: list[Commit], first_parent: bool = False) -> list[La
 
 
 class GraphModel(QAbstractTableModel):
-    def __init__(self, commits: list[Commit], refs: dict[str, list[str]],
-                 head_branch: str | None = None, parent=None,
-                 *, first_parent: bool = False) -> None:
+    def __init__(
+        self,
+        commits: list[Commit],
+        refs: dict[str, list[str]],
+        head_branch: str | None = None,
+        parent=None,
+        *,
+        first_parent: bool = False,
+    ) -> None:
         super().__init__(parent)
         self._commits = commits
         self._refs = refs
@@ -170,7 +181,11 @@ class GraphModel(QAbstractTableModel):
         return len(COLUMNS)  # 2: graph, info
 
     def data(self, index: QModelIndex, role: int = Qt.DisplayRole):
-        if not index.isValid() or index.row() >= len(self._commits) or index.column() >= len(COLUMNS):
+        if (
+            not index.isValid()
+            or index.row() >= len(self._commits)
+            or index.column() >= len(COLUMNS)
+        ):
             return None
         commit = self._commits[index.row()]
         col = index.column()
@@ -197,9 +212,14 @@ class GraphModel(QAbstractTableModel):
             return COLUMNS[section].capitalize()
         return None
 
-    def reload(self, commits: list[Commit], refs: dict[str, list[str]],
-               head_branch: str | None = None,
-               *, first_parent: bool = False) -> None:
+    def reload(
+        self,
+        commits: list[Commit],
+        refs: dict[str, list[str]],
+        head_branch: str | None = None,
+        *,
+        first_parent: bool = False,
+    ) -> None:
         self.beginResetModel()
         self._commits = commits
         self._refs = refs

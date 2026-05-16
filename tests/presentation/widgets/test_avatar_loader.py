@@ -1,12 +1,10 @@
 """Tests for AvatarLoader: email extraction, hashing, two-tier cache, async fetch."""
+
 from __future__ import annotations
 
 import hashlib
-from pathlib import Path
 
-import pytest
-from PySide6.QtCore import QByteArray
-from PySide6.QtGui import QImage, QPixmap
+from PySide6.QtGui import QImage
 
 from git_gui.presentation.widgets.avatar_loader import (
     AvatarLoader,
@@ -67,6 +65,7 @@ def _make_png_bytes() -> bytes:
     img = QImage(4, 4, QImage.Format_ARGB32)
     img.fill(0xFF112233)
     from PySide6.QtCore import QBuffer, QIODevice
+
     buf = QBuffer()
     buf.open(QIODevice.WriteOnly)
     img.save(buf, "PNG")

@@ -1,4 +1,5 @@
 """ThemeDialog — pick System/Light/Dark/Custom theme."""
+
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
@@ -21,40 +22,76 @@ from git_gui.presentation.theme import settings as _settings
 from git_gui.presentation.theme.loader import load_builtin
 from git_gui.presentation.widgets.avatar_loader import get_avatar_loader
 
-
 _MODES: list[tuple[str, str]] = [
     ("system", "System"),
-    ("dark",   "Dark"),
-    ("light",  "Light"),
+    ("dark", "Dark"),
+    ("light", "Light"),
     ("custom", "Custom"),
 ]
 
 
 _GROUPS: list[tuple[str, list[str]]] = [
-    ("Brand", [
-        "primary", "on_primary", "primary_container", "on_primary_container",
-        "secondary", "on_secondary", "error", "on_error",
-    ]),
-    ("Surface", [
-        "background", "on_background", "surface", "on_surface",
-        "surface_variant", "on_surface_variant",
-        "surface_container", "surface_container_high",
-        "outline", "outline_variant",
-    ]),
-    ("Status badges", [
-        "status_modified", "status_added", "status_deleted",
-        "status_renamed", "status_unknown", "on_badge",
-    ]),
-    ("Branches & refs", [
-        "branch_head_bg",
-        "ref_badge_branch_bg", "ref_badge_tag_bg", "ref_badge_remote_bg",
-    ]),
-    ("Diff", [
-        "diff_added_bg", "diff_added_fg",
-        "diff_removed_bg", "diff_removed_fg",
-        "diff_added_overlay", "diff_removed_overlay",
-        "diff_file_header_fg", "diff_hunk_header_fg",
-    ]),
+    (
+        "Brand",
+        [
+            "primary",
+            "on_primary",
+            "primary_container",
+            "on_primary_container",
+            "secondary",
+            "on_secondary",
+            "error",
+            "on_error",
+        ],
+    ),
+    (
+        "Surface",
+        [
+            "background",
+            "on_background",
+            "surface",
+            "on_surface",
+            "surface_variant",
+            "on_surface_variant",
+            "surface_container",
+            "surface_container_high",
+            "outline",
+            "outline_variant",
+        ],
+    ),
+    (
+        "Status badges",
+        [
+            "status_modified",
+            "status_added",
+            "status_deleted",
+            "status_renamed",
+            "status_unknown",
+            "on_badge",
+        ],
+    ),
+    (
+        "Branches & refs",
+        [
+            "branch_head_bg",
+            "ref_badge_branch_bg",
+            "ref_badge_tag_bg",
+            "ref_badge_remote_bg",
+        ],
+    ),
+    (
+        "Diff",
+        [
+            "diff_added_bg",
+            "diff_added_fg",
+            "diff_removed_bg",
+            "diff_removed_fg",
+            "diff_added_overlay",
+            "diff_removed_overlay",
+            "diff_file_header_fg",
+            "diff_hunk_header_fg",
+        ],
+    ),
     ("Misc", ["hover_overlay"]),
 ]
 
@@ -69,10 +106,8 @@ _TYPOGRAPHY_SCALE_STEP = 10
 def _hex_for_token(token: str, qcolor: QColor) -> str:
     """Return hex string for a token; hex8 (#AARRGGBB) for overlay tokens."""
     if token.endswith("_overlay") or token == "hover_overlay":
-        return "#{:02x}{:02x}{:02x}{:02x}".format(
-            qcolor.alpha(), qcolor.red(), qcolor.green(), qcolor.blue()
-        )
-    return "#{:02x}{:02x}{:02x}".format(qcolor.red(), qcolor.green(), qcolor.blue())
+        return f"#{qcolor.alpha():02x}{qcolor.red():02x}{qcolor.green():02x}{qcolor.blue():02x}"
+    return f"#{qcolor.red():02x}{qcolor.green():02x}{qcolor.blue():02x}"
 
 
 def _qcolor_for_hex(hex_str: str) -> QColor:
@@ -86,7 +121,9 @@ def _readable_fg_for(hex_value: str) -> str:
     if len(s) == 8:
         s = s[2:]
     try:
-        r = int(s[0:2], 16); g = int(s[2:4], 16); b = int(s[4:6], 16)
+        r = int(s[0:2], 16)
+        g = int(s[2:4], 16)
+        b = int(s[4:6], 16)
     except ValueError:
         return "#000"
     # Perceived luminance
@@ -230,9 +267,7 @@ class ThemeDialog(QDialog):
                 btn = QPushButton()
                 btn.setFixedSize(80, 22)
                 btn.setFlat(True)
-                btn.clicked.connect(
-                    lambda _checked=False, t=token: self._open_picker(t)
-                )
+                btn.clicked.connect(lambda _checked=False, t=token: self._open_picker(t))
                 self._swatch_buttons[token] = btn
                 self._apply_swatch_color(token, self._working_colors[token])
                 grid.addWidget(btn, row, 1)
@@ -248,9 +283,7 @@ class ThemeDialog(QDialog):
             btn = QPushButton()
             btn.setFixedSize(40, 22)
             btn.setFlat(True)
-            btn.clicked.connect(
-                lambda _checked=False, idx=i: self._open_lane_picker(idx)
-            )
+            btn.clicked.connect(lambda _checked=False, idx=i: self._open_lane_picker(idx))
             self._lane_buttons.append(btn)
             self._apply_lane_swatch_color(i, hex_value)
             lanes_row.addWidget(btn)
@@ -291,6 +324,7 @@ class ThemeDialog(QDialog):
         if self._selected_mode() != "custom":
             return
         from PySide6.QtWidgets import QColorDialog
+
         current = self._working_colors[token]
         initial = _qcolor_for_hex(current)
         is_overlay = token.endswith("_overlay") or token == "hover_overlay"
@@ -309,13 +343,12 @@ class ThemeDialog(QDialog):
         if self._selected_mode() != "custom":
             return
         from PySide6.QtWidgets import QColorDialog
+
         current = self._working_lane_colors[idx]
         initial = _qcolor_for_hex(current)
         chosen = QColorDialog.getColor(initial, self, f"Lane {idx}")
         if chosen.isValid():
-            new_hex = "#{:02x}{:02x}{:02x}".format(
-                chosen.red(), chosen.green(), chosen.blue()
-            )
+            new_hex = f"#{chosen.red():02x}{chosen.green():02x}{chosen.blue():02x}"
             self._working_lane_colors[idx] = new_hex
             self._apply_lane_swatch_color(idx, new_hex)
 
@@ -360,8 +393,9 @@ class ThemeDialog(QDialog):
             self._apply_lane_swatch_color(i, hex_value)
 
     def _write_custom_theme(self) -> None:
-        import json
         import dataclasses
+        import json
+
         from git_gui.presentation.theme import settings as _settings
         from git_gui.presentation.theme.tokens import Colors, Theme
 
@@ -387,7 +421,8 @@ class ThemeDialog(QDialog):
 
     def _maybe_load_existing_custom_theme(self) -> None:
         from git_gui.presentation.theme import settings as _settings
-        from git_gui.presentation.theme.loader import load_theme, ThemeValidationError
+        from git_gui.presentation.theme.loader import ThemeValidationError, load_theme
+
         path = _settings.custom_theme_path()
         if not path.exists():
             return
@@ -408,10 +443,10 @@ class ThemeDialog(QDialog):
                 self._apply_lane_swatch_color(i, hex_value)
 
 
-
 def _theme_to_json(theme) -> dict:
     """Serialize Theme to a dict matching the loader's strict schema."""
     import dataclasses
+
     return {
         "name": theme.name,
         "is_dark": theme.is_dark,

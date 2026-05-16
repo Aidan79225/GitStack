@@ -1,6 +1,8 @@
 """Install a `Git` menu with `Remotes...` and `Submodules...` items."""
+
 from __future__ import annotations
-from typing import Callable
+
+from collections.abc import Callable
 
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMainWindow, QMenu

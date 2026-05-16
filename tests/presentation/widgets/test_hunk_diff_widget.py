@@ -1,5 +1,7 @@
 """Integration tests for HunkDiffWidget lazy loading flow."""
+
 from __future__ import annotations
+
 from unittest.mock import MagicMock
 
 import pytest

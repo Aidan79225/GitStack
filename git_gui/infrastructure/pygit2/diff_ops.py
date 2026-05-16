@@ -1,19 +1,20 @@
 # git_gui/infrastructure/pygit2/diff_ops.py
 from __future__ import annotations
+
 import logging
 import subprocess
 
 import pygit2
 
-from git_gui.resources import subprocess_kwargs
-from git_gui.domain.entities import FileStatus, Hunk, WORKING_TREE_OID
+from git_gui.domain.entities import WORKING_TREE_OID, FileStatus, Hunk
 from git_gui.infrastructure.pygit2._helpers import (
     _diff_to_hunks,
     _map_statuses,
-    _synthesise_untracked_hunk,
-    _synthesise_conflict_hunk,
     _submodule_diff_hunk,
+    _synthesise_conflict_hunk,
+    _synthesise_untracked_hunk,
 )
+from git_gui.resources import subprocess_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ class DiffOps:
     Mixin — not instantiable on its own. Relies on `self._repo` set up
     by the composite class.
     """
+
     _repo: pygit2.Repository  # provided by the composite
 
     def get_file_diff(self, oid: str, path: str) -> list[Hunk]:
@@ -188,7 +190,10 @@ class DiffOps:
     def is_dirty(self) -> bool:
         result = subprocess.run(
             ["git", "status", "--porcelain"],
-            capture_output=True, text=True,
-            cwd=self._repo.workdir, env=self._git_env, **subprocess_kwargs(),
+            capture_output=True,
+            text=True,
+            cwd=self._repo.workdir,
+            env=self._git_env,
+            **subprocess_kwargs(),
         )
         return bool(result.stdout.strip())

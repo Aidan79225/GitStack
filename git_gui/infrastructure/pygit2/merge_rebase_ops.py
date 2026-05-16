@@ -1,12 +1,13 @@
 # git_gui/infrastructure/pygit2/merge_rebase_ops.py
 from __future__ import annotations
+
 import os
 import subprocess
 
 import pygit2
 
-from git_gui.resources import subprocess_kwargs
 from git_gui.domain.entities import MergeAnalysisResult, MergeStrategy
+from git_gui.resources import subprocess_kwargs
 
 
 class MergeRebaseOps:
@@ -16,9 +17,15 @@ class MergeRebaseOps:
     Mixin — not instantiable on its own. Relies on `self._repo` set up
     by the composite class.
     """
+
     _repo: pygit2.Repository  # provided by the composite
 
-    def merge(self, branch: str, strategy: MergeStrategy = MergeStrategy.ALLOW_FF, message: str | None = None) -> None:
+    def merge(
+        self,
+        branch: str,
+        strategy: MergeStrategy = MergeStrategy.ALLOW_FF,
+        message: str | None = None,
+    ) -> None:
         if branch in self._repo.branches.local:
             ref = self._repo.branches.local[branch]
         else:
@@ -26,7 +33,9 @@ class MergeRebaseOps:
         default_label = f"branch '{branch}'"
         self._merge_oid(ref.target, label=default_label, strategy=strategy, message=message)
 
-    def merge_commit(self, oid: str, strategy: MergeStrategy = MergeStrategy.ALLOW_FF, message: str | None = None) -> None:
+    def merge_commit(
+        self, oid: str, strategy: MergeStrategy = MergeStrategy.ALLOW_FF, message: str | None = None
+    ) -> None:
         target = pygit2.Oid(hex=oid)
         default_label = f"commit {oid[:7]}"
         self._merge_oid(target, label=default_label, strategy=strategy, message=message)
@@ -38,7 +47,13 @@ class MergeRebaseOps:
         is_up_to_date = bool(result & pygit2.GIT_MERGE_ANALYSIS_UP_TO_DATE)
         return MergeAnalysisResult(can_ff=can_ff, is_up_to_date=is_up_to_date)
 
-    def _merge_oid(self, target_oid, label: str, strategy: MergeStrategy = MergeStrategy.ALLOW_FF, message: str | None = None) -> None:
+    def _merge_oid(
+        self,
+        target_oid,
+        label: str,
+        strategy: MergeStrategy = MergeStrategy.ALLOW_FF,
+        message: str | None = None,
+    ) -> None:
         merge_result, _ = self._repo.merge_analysis(target_oid)
         can_ff = bool(merge_result & pygit2.GIT_MERGE_ANALYSIS_FASTFORWARD)
         commit_message = message if message else f"Merge {label}"
@@ -56,7 +71,9 @@ class MergeRebaseOps:
                 tree = self._repo.index.write_tree()
                 sig = self._get_signature()
                 self._repo.create_commit(
-                    "HEAD", sig, sig,
+                    "HEAD",
+                    sig,
+                    sig,
                     commit_message,
                     tree,
                     [self._repo.head.target, target_oid],
@@ -73,7 +90,9 @@ class MergeRebaseOps:
                     tree = self._repo.index.write_tree()
                     sig = self._get_signature()
                     self._repo.create_commit(
-                        "HEAD", sig, sig,
+                        "HEAD",
+                        sig,
+                        sig,
                         commit_message,
                         tree,
                         [self._repo.head.target, target_oid],
@@ -94,13 +113,18 @@ class MergeRebaseOps:
         self._run_git("rebase", "--abort")
 
     def rebase_continue(self, message: str = "") -> None:
-        import sys, tempfile
+        import sys
+        import tempfile
+
         env = self._git_env
         if message:
             # Write the message to a temp file, then set GIT_EDITOR to a
             # command that copies it over the file git passes to the editor.
             msg_file = tempfile.NamedTemporaryFile(
-                mode="w", suffix=".txt", delete=False, encoding="utf-8",
+                mode="w",
+                suffix=".txt",
+                delete=False,
+                encoding="utf-8",
             )
             msg_file.write(message)
             msg_file.close()
@@ -108,20 +132,25 @@ class MergeRebaseOps:
             python = sys.executable.replace("\\", "/")
             msg_path = msg_file.name.replace("\\", "/")
             env["GIT_EDITOR"] = (
-                f'{python} -c "'
-                f"import shutil,sys; shutil.copy('{msg_path}', sys.argv[1])"
-                f'"'
+                f"{python} -c \"import shutil,sys; shutil.copy('{msg_path}', sys.argv[1])\""
             )
         else:
             env["GIT_EDITOR"] = "true"
         try:
             result = subprocess.run(
                 ["git", "rebase", "--continue"],
-                cwd=self._repo.workdir, capture_output=True, text=True,
-                env=env, **subprocess_kwargs(),
+                cwd=self._repo.workdir,
+                capture_output=True,
+                text=True,
+                env=env,
+                **subprocess_kwargs(),
             )
             if result.returncode != 0:
-                msg = result.stderr.strip() or result.stdout.strip() or f"exit code {result.returncode}"
+                msg = (
+                    result.stderr.strip()
+                    or result.stdout.strip()
+                    or f"exit code {result.returncode}"
+                )
                 raise RuntimeError(msg)
         finally:
             if message:
@@ -156,7 +185,10 @@ class MergeRebaseOps:
 
         # Write to a temp file
         todo_file = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False, encoding="utf-8",
+            mode="w",
+            suffix=".txt",
+            delete=False,
+            encoding="utf-8",
         )
         todo_file.write(todo_content)
         todo_file.close()
@@ -165,9 +197,7 @@ class MergeRebaseOps:
         python = sys.executable.replace("\\", "/")
         todo_path = todo_file.name.replace("\\", "/")
         env["GIT_SEQUENCE_EDITOR"] = (
-            f'{python} -c "'
-            f"import shutil,sys; shutil.copy('{todo_path}', sys.argv[1])"
-            f'"'
+            f"{python} -c \"import shutil,sys; shutil.copy('{todo_path}', sys.argv[1])\""
         )
         # Prevent interactive editor from opening for squash/fixup messages
         env["GIT_EDITOR"] = "true"
@@ -175,22 +205,31 @@ class MergeRebaseOps:
         try:
             result = subprocess.run(
                 ["git", "rebase", "-i", rebase_target],
-                cwd=self._repo.workdir, capture_output=True, text=True,
-                env=env, **subprocess_kwargs(),
+                cwd=self._repo.workdir,
+                capture_output=True,
+                text=True,
+                env=env,
+                **subprocess_kwargs(),
             )
             if result.returncode != 0:
                 # Check if we're in a conflict state — let the banner handle it
                 state = self._repo.state()
                 rebase_states = set()
-                for name in ("GIT_REPOSITORY_STATE_REBASE",
-                             "GIT_REPOSITORY_STATE_REBASE_INTERACTIVE",
-                             "GIT_REPOSITORY_STATE_REBASE_MERGE"):
+                for name in (
+                    "GIT_REPOSITORY_STATE_REBASE",
+                    "GIT_REPOSITORY_STATE_REBASE_INTERACTIVE",
+                    "GIT_REPOSITORY_STATE_REBASE_MERGE",
+                ):
                     const = getattr(pygit2, name, None)
                     if const is not None:
                         rebase_states.add(const)
                 if state in rebase_states:
                     return  # conflict — Spec C banner will handle
-                msg = result.stderr.strip() or result.stdout.strip() or f"exit code {result.returncode}"
+                msg = (
+                    result.stderr.strip()
+                    or result.stdout.strip()
+                    or f"exit code {result.returncode}"
+                )
                 raise RuntimeError(msg)
         finally:
             try:

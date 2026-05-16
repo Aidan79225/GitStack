@@ -1,7 +1,8 @@
 # git_gui/presentation/main_window/merge_rebase_flows.py
 from __future__ import annotations
-from git_gui.presentation.dialogs.merge_dialog import MergeDialog
+
 from git_gui.presentation.dialogs.interactive_rebase_dialog import InteractiveRebaseDialog
+from git_gui.presentation.dialogs.merge_dialog import MergeDialog
 
 
 class MergeRebaseFlowsMixin:
@@ -19,9 +20,7 @@ class MergeRebaseFlowsMixin:
         self._working_tree.rebase_continue_requested.connect(self._on_rebase_continue)
         self._diff.merge_abort_requested.connect(self._on_merge_abort)
         self._diff.rebase_abort_requested.connect(self._on_rebase_abort)
-        self._diff.rebase_continue_requested.connect(
-            lambda: self._on_rebase_continue("")
-        )
+        self._diff.rebase_continue_requested.connect(lambda: self._on_rebase_continue(""))
         self._sidebar.branch_merge_requested.connect(self._on_merge)
         self._sidebar.branch_rebase_requested.connect(self._on_rebase)
         self._graph.merge_branch_requested.connect(self._on_merge)
@@ -81,7 +80,9 @@ class MergeRebaseFlowsMixin:
                 self._log_panel.log(f"Merge commit {short_oid}: already up to date")
                 return
 
-            dlg = MergeDialog(f"commit {short_oid}", head_branch, analysis.can_ff, default_msg, parent=self)
+            dlg = MergeDialog(
+                f"commit {short_oid}", head_branch, analysis.can_ff, default_msg, parent=self
+            )
             if dlg.exec() != MergeDialog.Accepted:
                 return
             req = dlg.result_value()

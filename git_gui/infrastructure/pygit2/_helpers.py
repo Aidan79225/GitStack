@@ -2,27 +2,33 @@
 """Pure helpers for the pygit2 adapter family. No pygit2.Repository instance
 state, no shared mutable state — these are free functions that the mixins
 call during diff synthesis, submodule detection, and entity conversion."""
+
 from __future__ import annotations
-from datetime import datetime, timezone
-from typing import Literal
+
 import os
+from datetime import UTC, datetime
+from typing import Literal
 
 import pygit2
 
 from git_gui.domain.entities import Commit, Hunk
 
-
-_STATUS_MAP: dict[int, tuple[Literal["staged","unstaged","untracked","conflicted"],
-                              Literal["added","modified","deleted","renamed","unknown"]]] = {
-    pygit2.GIT_STATUS_INDEX_NEW:        ("staged",   "added"),
-    pygit2.GIT_STATUS_INDEX_MODIFIED:   ("staged",   "modified"),
-    pygit2.GIT_STATUS_INDEX_DELETED:    ("staged",   "deleted"),
-    pygit2.GIT_STATUS_INDEX_RENAMED:    ("staged",   "renamed"),
-    pygit2.GIT_STATUS_WT_NEW:           ("untracked","added"),
-    pygit2.GIT_STATUS_WT_MODIFIED:      ("unstaged", "modified"),
-    pygit2.GIT_STATUS_WT_DELETED:       ("unstaged", "deleted"),
-    pygit2.GIT_STATUS_WT_RENAMED:       ("unstaged", "renamed"),
-    pygit2.GIT_STATUS_CONFLICTED:       ("conflicted","unknown"),
+_STATUS_MAP: dict[
+    int,
+    tuple[
+        Literal["staged", "unstaged", "untracked", "conflicted"],
+        Literal["added", "modified", "deleted", "renamed", "unknown"],
+    ],
+] = {
+    pygit2.GIT_STATUS_INDEX_NEW: ("staged", "added"),
+    pygit2.GIT_STATUS_INDEX_MODIFIED: ("staged", "modified"),
+    pygit2.GIT_STATUS_INDEX_DELETED: ("staged", "deleted"),
+    pygit2.GIT_STATUS_INDEX_RENAMED: ("staged", "renamed"),
+    pygit2.GIT_STATUS_WT_NEW: ("untracked", "added"),
+    pygit2.GIT_STATUS_WT_MODIFIED: ("unstaged", "modified"),
+    pygit2.GIT_STATUS_WT_DELETED: ("unstaged", "deleted"),
+    pygit2.GIT_STATUS_WT_RENAMED: ("unstaged", "renamed"),
+    pygit2.GIT_STATUS_CONFLICTED: ("conflicted", "unknown"),
 }
 
 
@@ -36,7 +42,7 @@ def _map_statuses(flags: int) -> list[tuple[str, str]]:
 
 
 def _commit_to_entity(c: pygit2.Commit) -> Commit:
-    ts = datetime.fromtimestamp(c.commit_time, tz=timezone.utc).astimezone()
+    ts = datetime.fromtimestamp(c.commit_time, tz=UTC).astimezone()
     return Commit(
         oid=str(c.id),
         message=c.message.strip(),
@@ -66,23 +72,27 @@ def _synthesise_untracked_hunk(workdir: str, path: str) -> list[Hunk]:
             head = f.read(8192)
         is_binary = b"\x00" in head
         if is_binary:
-            return [Hunk(header="@@ -0,0 +1,1 @@",
-                         lines=[("+", "Binary file\n")])]
+            return [Hunk(header="@@ -0,0 +1,1 @@", lines=[("+", "Binary file\n")])]
         if size > _UNTRACKED_MAX_BYTES:
-            return [Hunk(header="@@ -0,0 +1,1 @@",
-                         lines=[("+", f"Large file ({size} bytes)\n")])]
-        with open(full, "r", encoding="utf-8", errors="replace") as f:
+            return [Hunk(header="@@ -0,0 +1,1 @@", lines=[("+", f"Large file ({size} bytes)\n")])]
+        with open(full, encoding="utf-8", errors="replace") as f:
             text = f.read()
         lines = text.splitlines(keepends=True)
         if len(lines) > _UNTRACKED_MAX_LINES:
-            return [Hunk(header="@@ -0,0 +1,1 @@",
-                         lines=[("+", f"Large file ({len(lines)} lines, {size} bytes)\n")])]
+            return [
+                Hunk(
+                    header="@@ -0,0 +1,1 @@",
+                    lines=[("+", f"Large file ({len(lines)} lines, {size} bytes)\n")],
+                )
+            ]
         if not lines:
             return []
-        return [Hunk(
-            header=f"@@ -0,0 +1,{len(lines)} @@",
-            lines=[("+", line if line.endswith("\n") else line + "\n") for line in lines],
-        )]
+        return [
+            Hunk(
+                header=f"@@ -0,0 +1,{len(lines)} @@",
+                lines=[("+", line if line.endswith("\n") else line + "\n") for line in lines],
+            )
+        ]
     except OSError:
         return []
 
@@ -91,7 +101,7 @@ def _synthesise_conflict_hunk(workdir: str, path: str) -> list[Hunk]:
     """Read a conflicted file and return one hunk per conflict block (<<<<<<<...>>>>>>>)."""
     full = os.path.join(workdir, path)
     try:
-        with open(full, "r", encoding="utf-8", errors="replace") as f:
+        with open(full, encoding="utf-8", errors="replace") as f:
             lines = f.readlines()
     except OSError:
         return []
@@ -117,10 +127,12 @@ def _synthesise_conflict_hunk(workdir: str, path: str) -> list[Hunk]:
         elif line.startswith(">>>>>>>") and in_conflict:
             block.append((" ", line))
             n = len(block)
-            hunks.append(Hunk(
-                header=f"@@ -{block_start},{n} +{block_start},{n} @@",
-                lines=block,
-            ))
+            hunks.append(
+                Hunk(
+                    header=f"@@ -{block_start},{n} +{block_start},{n} @@",
+                    lines=block,
+                )
+            )
             block = []
             in_conflict = False
         elif in_conflict:
@@ -158,12 +170,12 @@ def _resolve_gitdir(path: str) -> str:
     # Case 2: gitlink file (initialized submodule)
     if os.path.isfile(dot_git):
         try:
-            with open(dot_git, "r", encoding="utf-8") as f:
+            with open(dot_git, encoding="utf-8") as f:
                 content = f.read().strip()
         except OSError:
             return path
         if content.startswith("gitdir:"):
-            rel = content[len("gitdir:"):].strip()
+            rel = content[len("gitdir:") :].strip()
             return os.path.normpath(os.path.join(path, rel))
         return path
 
@@ -177,7 +189,7 @@ def _resolve_gitdir(path: str) -> str:
         if os.path.isdir(parent_git) and os.path.isfile(gitmodules_path):
             rel_path = os.path.relpath(abs_path, current).replace("\\", "/")
             try:
-                with open(gitmodules_path, "r", encoding="utf-8") as f:
+                with open(gitmodules_path, encoding="utf-8") as f:
                     modules_content = f.read()
             except OSError:
                 return path
@@ -206,7 +218,7 @@ def _parse_gitmodules_paths(workdir: str) -> list[str]:
         return []
     paths: list[str] = []
     try:
-        with open(gitmodules, "r", encoding="utf-8") as f:
+        with open(gitmodules, encoding="utf-8") as f:
             content = f.read()
     except OSError:
         return []

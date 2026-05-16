@@ -15,7 +15,9 @@ Python stacks of every thread at the moment of the fault.
 Idempotent — calling ``setup_logging()`` multiple times is safe and
 will not install duplicate handlers or hooks.
 """
+
 from __future__ import annotations
+
 import faulthandler
 import logging
 import logging.handlers
@@ -28,7 +30,7 @@ _LOG_DIR = Path.home() / ".gitcrisp" / "logs"
 _LOG_FILE = _LOG_DIR / "gitcrisp.log"
 _FAULT_FILE = _LOG_DIR / "faulthandler.log"
 _MAX_BYTES = 1_000_000  # 1 MB per file
-_BACKUP_COUNT = 3       # keep gitcrisp.log.1 .. .3
+_BACKUP_COUNT = 3  # keep gitcrisp.log.1 .. .3
 
 _uncaught_logger = logging.getLogger("gitcrisp.uncaught")
 _fault_fp: IO[str] | None = None
@@ -79,9 +81,7 @@ def setup_logging() -> None:
             backupCount=_BACKUP_COUNT,
             encoding="utf-8",
         )
-        handler.setFormatter(logging.Formatter(
-            "%(asctime)s %(levelname)s %(name)s: %(message)s"
-        ))
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
         root.setLevel(logging.WARNING)
         root.addHandler(handler)
 

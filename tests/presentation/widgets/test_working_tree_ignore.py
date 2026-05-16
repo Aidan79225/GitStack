@@ -5,8 +5,9 @@ previous repo's .gitignore because WorkingTreeWidget._repo_path was not
 being updated. set_repo_path now mirrors the sidebar's pattern, and
 _on_repo_ready calls it alongside set_buses.
 """
+
 from __future__ import annotations
-import pytest
+
 from PySide6.QtWidgets import QWidget
 
 from git_gui.presentation.widgets.working_tree import WorkingTreeWidget

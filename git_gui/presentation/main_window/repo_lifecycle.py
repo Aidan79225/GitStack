@@ -1,6 +1,8 @@
 # git_gui/presentation/main_window/repo_lifecycle.py
 from __future__ import annotations
+
 import threading
+
 from PySide6.QtCore import QObject, Signal
 
 from git_gui.presentation.bus import CommandBus, QueryBus
@@ -9,8 +11,8 @@ from git_gui.presentation.services.repo_change_detector import RepoChangeDetecto
 
 
 class _RepoReadySignals(QObject):
-    ready = Signal(str, object, object)   # path, QueryBus, CommandBus
-    failed = Signal(str, str)             # path, error
+    ready = Signal(str, object, object)  # path, QueryBus, CommandBus
+    failed = Signal(str, str)  # path, error
 
 
 class RepoLifecycleMixin:
@@ -84,7 +86,9 @@ class RepoLifecycleMixin:
         # Replace any previous detector and start watching this repo.
         self._stop_change_detector()
         self._change_detector = RepoChangeDetector(
-            repo_path=path, on_reload=self._reload, parent=self,
+            repo_path=path,
+            on_reload=self._reload,
+            parent=self,
         )
 
     def _on_repo_failed(self, path: str, error: str) -> None:

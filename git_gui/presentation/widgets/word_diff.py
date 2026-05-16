@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import re
 from dataclasses import dataclass
 from difflib import SequenceMatcher
@@ -49,17 +50,21 @@ def pair_diff(old_line: str, new_line: str) -> tuple[list[WordSpan], list[WordSp
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         kind: Literal["same", "changed"] = "same" if tag == "equal" else "changed"
         if i1 != i2:
-            old_spans.append(WordSpan(
-                start=old_tokens[i1][0],
-                end=old_tokens[i2 - 1][1],
-                kind=kind,
-            ))
+            old_spans.append(
+                WordSpan(
+                    start=old_tokens[i1][0],
+                    end=old_tokens[i2 - 1][1],
+                    kind=kind,
+                )
+            )
         if j1 != j2:
-            new_spans.append(WordSpan(
-                start=new_tokens[j1][0],
-                end=new_tokens[j2 - 1][1],
-                kind=kind,
-            ))
+            new_spans.append(
+                WordSpan(
+                    start=new_tokens[j1][0],
+                    end=new_tokens[j2 - 1][1],
+                    kind=kind,
+                )
+            )
     return _merge_adjacent(old_spans), _merge_adjacent(new_spans)
 
 

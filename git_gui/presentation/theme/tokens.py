@@ -1,6 +1,7 @@
 from __future__ import annotations
-from dataclasses import dataclass, field, fields
-from typing import List
+
+from dataclasses import dataclass
+
 from PySide6.QtGui import QColor, QFont
 
 
@@ -28,7 +29,7 @@ class Colors:
     diff_added_fg: str
     diff_removed_bg: str
     diff_removed_fg: str
-    graph_lane_colors: List[str]
+    graph_lane_colors: list[str]
     ref_badge_branch_bg: str
     ref_badge_tag_bg: str
     ref_badge_remote_bg: str

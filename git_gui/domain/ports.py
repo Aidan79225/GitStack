@@ -1,8 +1,25 @@
 from __future__ import annotations
+
 from collections.abc import Callable, Iterator
 from datetime import datetime
 from typing import Protocol, runtime_checkable
-from git_gui.domain.entities import Branch, Commit, CommitStat, FileStatus, Hunk, LocalBranchInfo, MergeAnalysisResult, MergeStrategy, Remote, RepoStateInfo, ResetMode, Stash, Submodule, Tag
+
+from git_gui.domain.entities import (
+    Branch,
+    Commit,
+    CommitStat,
+    FileStatus,
+    Hunk,
+    LocalBranchInfo,
+    MergeAnalysisResult,
+    MergeStrategy,
+    Remote,
+    RepoStateInfo,
+    ResetMode,
+    Stash,
+    Submodule,
+    Tag,
+)
 
 
 @runtime_checkable
@@ -47,6 +64,7 @@ class IRepositoryReader(Protocol):
     def get_commit_range(self, head_oid: str, base_oid: str) -> list[Commit]: ...
     def merge_base(self, oid_a: str, oid_b: str) -> str | None: ...
     def get_identity(self) -> tuple[str | None, str | None]: ...
+
     """Return (user.name, user.email) from repo config; either may be None if unset."""
 
 
@@ -64,9 +82,16 @@ class IRepositoryWriter(Protocol):
     def checkout_remote_branch(self, remote_branch: str) -> None: ...
     def create_branch(self, name: str, from_oid: str) -> Branch: ...
     def delete_branch(self, name: str) -> None: ...
-    def merge(self, branch: str, strategy: MergeStrategy = MergeStrategy.ALLOW_FF, message: str | None = None) -> None: ...
+    def merge(
+        self,
+        branch: str,
+        strategy: MergeStrategy = MergeStrategy.ALLOW_FF,
+        message: str | None = None,
+    ) -> None: ...
     def rebase(self, branch: str) -> None: ...
-    def merge_commit(self, oid: str, strategy: MergeStrategy = MergeStrategy.ALLOW_FF, message: str | None = None) -> None: ...
+    def merge_commit(
+        self, oid: str, strategy: MergeStrategy = MergeStrategy.ALLOW_FF, message: str | None = None
+    ) -> None: ...
     def rebase_onto_commit(self, oid: str) -> None: ...
     def push(self, remote: str, branch: str) -> None: ...
     def force_push(self, remote: str, branch: str) -> None: ...
@@ -105,6 +130,7 @@ class IRepositoryWriter(Protocol):
     def revert_abort(self) -> None: ...
     def revert_continue(self) -> None: ...
     def set_identity(self, name: str, email: str, global_: bool) -> None: ...
+
     """Persist user.name and user.email via `git config [--global|--local]`."""
 
 

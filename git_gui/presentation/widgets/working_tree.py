@@ -1,28 +1,41 @@
 # git_gui/presentation/widgets/working_tree.py
 from __future__ import annotations
+
 import threading
-from PySide6.QtCore import QModelIndex, QObject, QRect, QSize, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QPainter
+
+from PySide6.QtCore import QObject, QRect, Qt, Signal
+from PySide6.QtGui import QBrush, QPainter
 from PySide6.QtWidgets import (
-    QHBoxLayout, QLabel, QListView, QMenu, QMessageBox, QPlainTextEdit, QPushButton,
-    QSplitter, QStyle, QStyledItemDelegate, QStyleOptionViewItem,
-    QVBoxLayout, QWidget,
+    QHBoxLayout,
+    QLabel,
+    QListView,
+    QMenu,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QSplitter,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
+    QVBoxLayout,
+    QWidget,
 )
+
 from git_gui.domain.entities import FileStatus
 from git_gui.presentation.bus import CommandBus, QueryBus
-from git_gui.presentation.theme import get_theme_manager, connect_widget
-from git_gui.presentation.widgets.working_tree_model import WorkingTreeModel
-from git_gui.presentation.widgets.hunk_diff import HunkDiffWidget
+from git_gui.presentation.theme import connect_widget, get_theme_manager
 from git_gui.presentation.widgets.file_list_view import FileListView as _FileListView
+from git_gui.presentation.widgets.hunk_diff import HunkDiffWidget
+from git_gui.presentation.widgets.working_tree_model import WorkingTreeModel
 
 # (label only — color comes from theme.colors.status_color(kind) at paint time)
 _DELTA_LABEL = {
-    "modified":    "M",
-    "added":       "A",
-    "deleted":     "D",
-    "renamed":     "R",
-    "unknown":     "?",
-    "conflicted":  "C",
+    "modified": "M",
+    "added": "A",
+    "deleted": "D",
+    "renamed": "R",
+    "unknown": "?",
+    "conflicted": "C",
 }
 _BADGE_SIZE = 20
 _BADGE_GAP = 6
@@ -35,11 +48,6 @@ class _FileDelegate(QStyledItemDelegate):
         super().initStyleOption(option, index)
         # Prefix badge letter to display text so Qt reserves space;
         # we'll paint the badge over this prefix area
-        fs = index.data(Qt.UserRole)
-        kind = fs.status if fs else "unknown"
-        delta = fs.delta if fs else "unknown"
-        badge_key = kind if kind == "conflicted" else delta
-        label = _DELTA_LABEL.get(badge_key, "?")
         # Add padding spaces to make room for the badge we'll paint
         option.text = "          " + (option.text or "")
 
@@ -81,20 +89,22 @@ class _LoadSignals(QObject):
 
 class WorkingTreeWidget(QWidget):
     reload_requested = Signal()
-    commit_completed = Signal(str)   # emits first line of commit message
-    commit_failed = Signal(str)      # emits error reason
-    working_tree_empty = Signal()    # emitted when reload finds no changes
+    commit_completed = Signal(str)  # emits first line of commit message
+    commit_failed = Signal(str)  # emits error reason
+    working_tree_empty = Signal()  # emitted when reload finds no changes
     submodule_open_requested = Signal(str)  # forwarded from inner HunkDiffWidget
     merge_abort_requested = Signal()
     rebase_abort_requested = Signal()
-    merge_continue_requested = Signal(str)   # commit message
+    merge_continue_requested = Signal(str)  # commit message
     rebase_continue_requested = Signal(str)  # commit message
     cherry_pick_abort_requested = Signal()
     revert_abort_requested = Signal()
     cherry_pick_continue_requested = Signal()
     revert_continue_requested = Signal()
 
-    def __init__(self, queries: QueryBus, commands: CommandBus, repo_path: str | None = None, parent=None) -> None:
+    def __init__(
+        self, queries: QueryBus, commands: CommandBus, repo_path: str | None = None, parent=None
+    ) -> None:
         super().__init__(parent)
         self._queries = queries
         self._commands = commands
@@ -268,12 +278,13 @@ class WorkingTreeWidget(QWidget):
 
     def _ignore_file(self, path: str) -> None:
         import os
+
         if not self._repo_path:
             return
         gitignore_path = os.path.join(self._repo_path, ".gitignore")
         entry = path + "\n"
         if os.path.exists(gitignore_path):
-            with open(gitignore_path, "r", encoding="utf-8") as f:
+            with open(gitignore_path, encoding="utf-8") as f:
                 existing = f.read()
             if path in existing.splitlines():
                 return
@@ -345,8 +356,10 @@ class WorkingTreeWidget(QWidget):
         name, email = self._queries.get_identity.execute()
         if name and email:
             return True
-        from git_gui.presentation.dialogs.identity_dialog import IdentityDialog
         from PySide6.QtWidgets import QDialog
+
+        from git_gui.presentation.dialogs.identity_dialog import IdentityDialog
+
         dlg = IdentityDialog(name, email, parent=self)
         if dlg.exec() != QDialog.Accepted:
             return False
@@ -370,8 +383,9 @@ class WorkingTreeWidget(QWidget):
         queries = self._queries
 
         signals = _LoadSignals()
-        signals.done.connect(lambda files, partial: self._on_files_changed_done(
-            files, partial, selected_path))
+        signals.done.connect(
+            lambda files, partial: self._on_files_changed_done(files, partial, selected_path)
+        )
         self._load_signals = signals  # prevent GC
 
         def _worker():
@@ -381,8 +395,9 @@ class WorkingTreeWidget(QWidget):
 
         threading.Thread(target=_worker, daemon=True).start()
 
-    def _on_files_changed_done(self, files: list[FileStatus], partial: set[str],
-                               selected_path: str | None) -> None:
+    def _on_files_changed_done(
+        self, files: list[FileStatus], partial: set[str], selected_path: str | None
+    ) -> None:
         if self._queries is None:
             return
         self._file_model.reload(files, partial)
@@ -439,7 +454,6 @@ class WorkingTreeWidget(QWidget):
             self.cherry_pick_abort_requested.emit()
         elif state == "REVERTING":
             self.revert_abort_requested.emit()
-
 
 
 def _deduplicate(files: list[FileStatus]) -> tuple[list[FileStatus], set[str]]:

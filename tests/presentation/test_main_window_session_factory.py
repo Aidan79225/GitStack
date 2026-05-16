@@ -1,6 +1,7 @@
 """Regression tests for the session_factory injection — verifies
 MainWindow never imports infrastructure directly and delegates repo
 opening to an injected callable."""
+
 from __future__ import annotations
 
 import pathlib
@@ -66,8 +67,8 @@ def test_switch_repo_factory_failure_emits_failed_signal(qtbot):
 def test_main_window_source_does_not_import_infrastructure():
     """Regression guard: no file in the main_window subpackage may
     reference git_gui.infrastructure in any import form."""
-    import pathlib
     import git_gui.presentation.main_window as mw_pkg
+
     pkg_dir = pathlib.Path(mw_pkg.__file__).parent
     offenders = []
     for path in pkg_dir.rglob("*.py"):

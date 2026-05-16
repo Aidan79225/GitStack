@@ -1,8 +1,9 @@
 """Tests for the graph header's first-parent toggle button."""
+
 from __future__ import annotations
+
 from unittest.mock import MagicMock
 
-import pytest
 from PySide6.QtWidgets import QApplication
 
 from git_gui.presentation.widgets.graph import GraphWidget

@@ -9,12 +9,13 @@ A `.404` marker means Gravatar has no image for this email — we don't refetch.
 On a hit, `get_pixmap()` returns synchronously. On a miss, it kicks off an
 async fetch and emits `avatar_ready(email_hash)` when the pixmap is available.
 """
+
 from __future__ import annotations
 
 import hashlib
 import re
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
 
 from PySide6.QtCore import QByteArray, QObject, QUrl, Signal
 from PySide6.QtGui import QPixmap
@@ -25,7 +26,7 @@ GRAVATAR_SIZE = 128  # request 128px so 36px avatars stay sharp on HiDPI
 _EMAIL_RE = re.compile(r"<([^>]+)>")
 
 
-def email_from_author(author: str) -> Optional[str]:
+def email_from_author(author: str) -> str | None:
     """Extract an email from `Name <email>` or return the bare string if it
     looks like an email. Lowercased + stripped. None if nothing usable."""
     if not author:
@@ -57,8 +58,8 @@ class AvatarLoader(QObject):
 
     def __init__(
         self,
-        cache_dir: Optional[Path] = None,
-        fetcher: Optional[Callable[[str, Callable[[bytes | None], None]], None]] = None,
+        cache_dir: Path | None = None,
+        fetcher: Callable[[str, Callable[[bytes | None], None]], None] | None = None,
         enabled: bool = True,
         parent: QObject | None = None,
     ) -> None:
@@ -168,6 +169,7 @@ def get_avatar_loader() -> AvatarLoader:
     if _default_loader is None:
         # Late import to keep this module independent of the theme package.
         from git_gui.presentation.theme.settings import load_settings
+
         enabled = bool(load_settings().get("avatar_gravatar_enabled", True))
         _default_loader = AvatarLoader(enabled=enabled)
     return _default_loader

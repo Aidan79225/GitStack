@@ -6,11 +6,13 @@ Locks in the mixin-composite layout so future drift is caught:
 - No non-dunder attribute is defined directly on the composite class —
   every public method must come from a mixin.
 """
+
 from __future__ import annotations
 
 
 def test_pygit2_repository_is_importable_from_package_root():
     from git_gui.infrastructure.pygit2 import Pygit2Repository
+
     assert Pygit2Repository is not None
 
 
@@ -29,8 +31,16 @@ def test_pygit2_repository_mro_includes_all_mixins():
 
     mro = Pygit2Repository.__mro__
     expected = {
-        BranchOps, CommitOps, DiffOps, MergeRebaseOps, RemoteOps,
-        RepoStateOps, StageOps, StashOps, SubmoduleOps, TagOps,
+        BranchOps,
+        CommitOps,
+        DiffOps,
+        MergeRebaseOps,
+        RemoteOps,
+        RepoStateOps,
+        StageOps,
+        StashOps,
+        SubmoduleOps,
+        TagOps,
     }
     missing = expected - set(mro)
     assert not missing, f"Pygit2Repository MRO missing mixins: {missing}"
@@ -42,9 +52,7 @@ def test_pygit2_repository_composite_defines_no_own_public_attrs():
     split pattern — adding a method on the composite would violate it."""
     from git_gui.infrastructure.pygit2 import Pygit2Repository
 
-    own_non_dunders = [
-        name for name in vars(Pygit2Repository) if not name.startswith("__")
-    ]
+    own_non_dunders = [name for name in vars(Pygit2Repository) if not name.startswith("__")]
     assert own_non_dunders == [], (
         f"Pygit2Repository should not define methods directly; "
         f"move them to the appropriate mixin. Found: {own_non_dunders}"

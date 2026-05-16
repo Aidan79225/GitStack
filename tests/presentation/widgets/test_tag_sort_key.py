@@ -1,7 +1,6 @@
 """Tests for the semantic-version tag sort key used in SidebarWidget."""
-from __future__ import annotations
 
-import pytest
+from __future__ import annotations
 
 from git_gui.presentation.widgets.sidebar import _tag_sort_key
 

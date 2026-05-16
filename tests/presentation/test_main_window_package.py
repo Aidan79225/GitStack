@@ -7,12 +7,15 @@ Locks in the mixin-composite layout so future drift is caught:
 - No _on_* or _wire_* method is defined directly on the composite — they
   must all come from mixins.
 """
+
 from __future__ import annotations
+
 from PySide6.QtWidgets import QMainWindow
 
 
 def test_main_window_is_importable_from_package_root():
     from git_gui.presentation.main_window import MainWindow
+
     assert MainWindow is not None
 
 
@@ -30,9 +33,16 @@ def test_main_window_mro_includes_all_mixins():
     from git_gui.presentation.main_window.tag_flows import TagFlowsMixin
 
     expected = {
-        BranchFlowsMixin, CherryPickRevertFlowsMixin, MergeRebaseFlowsMixin,
-        ReloadCoordinatorMixin, RemoteOpQueueMixin, RepoLifecycleMixin,
-        ResetFlowMixin, RightPanelMixin, StashFlowsMixin, TagFlowsMixin,
+        BranchFlowsMixin,
+        CherryPickRevertFlowsMixin,
+        MergeRebaseFlowsMixin,
+        ReloadCoordinatorMixin,
+        RemoteOpQueueMixin,
+        RepoLifecycleMixin,
+        ResetFlowMixin,
+        RightPanelMixin,
+        StashFlowsMixin,
+        TagFlowsMixin,
     }
     missing = expected - set(MainWindow.__mro__)
     assert not missing, f"MainWindow MRO missing mixins: {missing}"
@@ -45,10 +55,7 @@ def test_main_window_composite_defines_no_handlers_directly():
     from git_gui.presentation.main_window import MainWindow
 
     own_names = list(vars(MainWindow).keys())
-    offending = [
-        n for n in own_names
-        if n.startswith("_on_") or n.startswith("_wire_")
-    ]
+    offending = [n for n in own_names if n.startswith("_on_") or n.startswith("_wire_")]
     assert offending == [], (
         f"MainWindow must not define _on_* or _wire_* methods directly; "
         f"move them to the appropriate mixin. Found: {offending}"

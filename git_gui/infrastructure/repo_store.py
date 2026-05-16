@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import json
 from pathlib import Path
 from typing import Any
@@ -24,8 +25,7 @@ class JsonRepoStore:
             self._active = data.get("active")
             raw_settings = data.get("settings", {}) or {}
             self._settings = {
-                str(k): dict(v) for k, v in raw_settings.items()
-                if isinstance(v, dict)
+                str(k): dict(v) for k, v in raw_settings.items() if isinstance(v, dict)
             }
         else:
             self._open = []

@@ -1,13 +1,15 @@
 """Tests for chunked rendering of large hunks in diff_block."""
+
 from __future__ import annotations
+
 from PySide6.QtCore import QEvent
-from PySide6.QtGui import QTextDocument, QTextCursor
 from PySide6.QtWidgets import QApplication, QPlainTextEdit
 
 from git_gui.domain.entities import Hunk
 from git_gui.presentation.widgets import diff_block
 from git_gui.presentation.widgets.diff_block import (
-    render_hunk_content_lines, make_diff_formats,
+    make_diff_formats,
+    render_hunk_content_lines,
 )
 
 
@@ -67,7 +69,8 @@ def test_chunked_render_canceled_when_widget_deleted(qtbot, monkeypatch):
 
     calls: list[tuple] = []
     monkeypatch.setattr(
-        diff_block, "_render_lines_range",
+        diff_block,
+        "_render_lines_range",
         lambda *args, **kwargs: calls.append(args),
     )
 
@@ -93,6 +96,7 @@ def test_make_file_block_collapse_hides_non_header_widgets(qtbot):
     """Toggling a file block to collapsed hides every widget inside `inner`
     except the header row at index 0."""
     from PySide6.QtWidgets import QLabel
+
     from git_gui.presentation.widgets.diff_block import make_file_block
 
     frame, inner = make_file_block("path/to/file.py")
@@ -108,6 +112,7 @@ def test_make_file_block_collapse_hides_non_header_widgets(qtbot):
 
     # Locate the toggle and verify all three children are visible to start.
     from git_gui.presentation.widgets._collapse_toggle import _CollapseToggle
+
     toggle = frame.findChild(_CollapseToggle)
     assert toggle is not None
     assert toggle.is_expanded() is True

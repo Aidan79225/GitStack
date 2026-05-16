@@ -1,10 +1,12 @@
 from __future__ import annotations
-import pytest
+
 from PySide6.QtWidgets import QPlainTextEdit
 
 from git_gui.domain.entities import Hunk
 from git_gui.presentation.widgets.diff_block import (
-    make_diff_formats, make_syntax_formats, render_hunk_content_lines,
+    make_diff_formats,
+    make_syntax_formats,
+    render_hunk_content_lines,
 )
 
 
@@ -15,8 +17,11 @@ def _editor_for_hunk(qtbot, hunk: Hunk, filename: str) -> QPlainTextEdit:
     syntax_formats = make_syntax_formats()
     cursor = editor.textCursor()
     render_hunk_content_lines(
-        cursor, hunk, diff_formats,
-        syntax_formats=syntax_formats, filename=filename,
+        cursor,
+        hunk,
+        diff_formats,
+        syntax_formats=syntax_formats,
+        filename=filename,
     )
     return editor
 
@@ -77,6 +82,7 @@ def test_unknown_extension_no_syntax_format(qtbot):
 def _bg_color_at(editor: QPlainTextEdit, line_index: int, col: int) -> str:
     """Return the QTextCharFormat background color at (line_index, col) as hex."""
     from PySide6.QtGui import QColor
+
     block = editor.document().findBlockByNumber(line_index)
     cursor = editor.textCursor()
     cursor.setPosition(block.position() + col + 1)

@@ -1,12 +1,17 @@
-from unittest.mock import MagicMock
 from datetime import datetime
-from git_gui.domain.entities import Commit, Branch, FileStatus, Hunk, Stash
-from git_gui.domain.ports import IRepositoryReader
+from unittest.mock import MagicMock
+
 from git_gui.application.queries import (
-    GetCommitGraph, GetBranches, GetCommitFiles,
-    GetFileDiff, GetWorkingTree, GetStashes,
+    GetBranches,
+    GetCommitFiles,
+    GetCommitGraph,
+    GetFileDiff,
     GetMergeBase,
+    GetStashes,
+    GetWorkingTree,
 )
+from git_gui.domain.entities import Branch, Commit, FileStatus, Hunk, Stash
+from git_gui.domain.ports import IRepositoryReader
 
 
 def _make_commit(oid="abc"):
@@ -76,6 +81,7 @@ def test_get_staged_diff_delegates_to_reader():
     reader = _reader()
     reader.get_staged_diff.return_value = [Hunk("@@ -1,1 +1,2 @@", [("+", "line\n")])]
     from git_gui.application.queries import GetStagedDiff
+
     result = GetStagedDiff(reader).execute("a.py")
     reader.get_staged_diff.assert_called_once_with("a.py")
     assert len(result) == 1
@@ -88,6 +94,7 @@ from git_gui.domain.entities import RepoState, RepoStateInfo
 class _FakeReader:
     def __init__(self, info):
         self._info = info
+
     def repo_state(self):
         return self._info
 
@@ -115,9 +122,11 @@ def test_is_ancestor_query_passthrough():
 from git_gui.application.queries import GetMergeAnalysis
 from git_gui.domain.entities import MergeAnalysisResult
 
+
 class _FakeMergeAnalysisReader:
     def merge_analysis(self, oid):
         return MergeAnalysisResult(can_ff=True, is_up_to_date=False)
+
 
 def test_get_merge_analysis_passthrough():
     q = GetMergeAnalysis(_FakeMergeAnalysisReader())
@@ -128,25 +137,32 @@ def test_get_merge_analysis_passthrough():
 
 from git_gui.application.queries import GetMergeHead, GetMergeMsg, HasUnresolvedConflicts
 
+
 class _FakeMergeHeadReader:
     def get_merge_head(self):
         return "abc123"
+
 
 class _FakeMergeMsgReader:
     def get_merge_msg(self):
         return "Merge branch 'feature'"
 
+
 class _FakeConflictReader:
     def __init__(self, val):
         self._val = val
+
     def has_unresolved_conflicts(self):
         return self._val
+
 
 def test_get_merge_head_passthrough():
     assert GetMergeHead(_FakeMergeHeadReader()).execute() == "abc123"
 
+
 def test_get_merge_msg_passthrough():
     assert GetMergeMsg(_FakeMergeMsgReader()).execute() == "Merge branch 'feature'"
+
 
 def test_has_unresolved_conflicts_passthrough():
     assert HasUnresolvedConflicts(_FakeConflictReader(True)).execute() is True

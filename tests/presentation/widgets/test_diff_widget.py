@@ -1,4 +1,5 @@
 """Integration tests for DiffWidget lazy loading flow."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -339,9 +340,7 @@ def test_render_single_file_while_pinned_calls_setvalue_with_diff_container_top(
         mock_setvalue.assert_called_with(widget._diff_container.geometry().top())
 
 
-def test_render_single_file_while_unpinned_does_not_call_setvalue(
-    multi_file_diff_widget, qtbot
-):
+def test_render_single_file_while_unpinned_does_not_call_setvalue(multi_file_diff_widget, qtbot):
     """When unpinned, _render_single_file leaves scroll position alone."""
     widget, _ = multi_file_diff_widget
     widget._sticky_controller._pinned = False
@@ -365,9 +364,7 @@ def test_render_all_files_while_pinned_calls_setvalue_with_diff_container_top(
         mock_setvalue.assert_called_with(widget._diff_container.geometry().top())
 
 
-def test_render_all_files_while_unpinned_does_not_call_setvalue(
-    multi_file_diff_widget, qtbot
-):
+def test_render_all_files_while_unpinned_does_not_call_setvalue(multi_file_diff_widget, qtbot):
     """When unpinned, _render_all_files leaves scroll position alone."""
     widget, _ = multi_file_diff_widget
     widget._sticky_controller._pinned = False
@@ -389,7 +386,9 @@ def test_message_collapse_shrinks_msg_view_to_subject_line(diff_widget, qtbot):
     # request that would leave a pending QNetworkReply in the Qt event queue
     # and corrupt subsequent test teardowns.
     from datetime import datetime
+
     from git_gui.domain.entities import Commit
+
     multi_line_msg = "Subject line\n\nBody paragraph one.\nBody paragraph two."
     commit = Commit(
         oid="a" * 40,

@@ -1,22 +1,20 @@
 # git_gui/presentation/main_window/main_window.py
 from __future__ import annotations
-from typing import Callable
+
+from collections.abc import Callable
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
-    QMainWindow, QSplitter, QStackedWidget,
-    QVBoxLayout, QWidget,
+    QMainWindow,
+    QSplitter,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
 )
+
 from git_gui.domain.ports import IRepoStore
 from git_gui.presentation.bus import CommandBus, QueryBus
-from git_gui.presentation.widgets.diff import DiffWidget
-from git_gui.presentation.widgets.graph import GraphWidget
-from git_gui.presentation.widgets.log_panel import LogPanel
-from git_gui.presentation.widgets.repo_list import RepoListWidget
-from git_gui.presentation.widgets.sidebar import SidebarWidget
-from git_gui.presentation.widgets.working_tree import WorkingTreeWidget
-from git_gui.presentation.menus.appearance import install_appearance_menu
-from git_gui.presentation.menus.git_menu import install_git_menu
 from git_gui.presentation.main_window.branch_flows import BranchFlowsMixin
 from git_gui.presentation.main_window.cherry_pick_revert_flows import CherryPickRevertFlowsMixin
 from git_gui.presentation.main_window.commit_flows import CommitFlowsMixin
@@ -28,12 +26,41 @@ from git_gui.presentation.main_window.reset_flow import ResetFlowMixin
 from git_gui.presentation.main_window.right_panel import RightPanelMixin
 from git_gui.presentation.main_window.stash_flows import StashFlowsMixin
 from git_gui.presentation.main_window.tag_flows import TagFlowsMixin
+from git_gui.presentation.menus.appearance import install_appearance_menu
+from git_gui.presentation.menus.git_menu import install_git_menu
+from git_gui.presentation.widgets.diff import DiffWidget
+from git_gui.presentation.widgets.graph import GraphWidget
+from git_gui.presentation.widgets.log_panel import LogPanel
+from git_gui.presentation.widgets.repo_list import RepoListWidget
+from git_gui.presentation.widgets.sidebar import SidebarWidget
+from git_gui.presentation.widgets.working_tree import WorkingTreeWidget
 
 
-class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlowMixin, StashFlowsMixin, BranchFlowsMixin, CherryPickRevertFlowsMixin, TagFlowsMixin, MergeRebaseFlowsMixin, CommitFlowsMixin, RemoteOpQueueMixin, RepoLifecycleMixin):
-    def __init__(self, queries: QueryBus | None, commands: CommandBus | None,
-                 repo_store: IRepoStore, remote_tag_cache=None, repo_path: str | None = None, parent=None,
-                 *, session_factory: Callable[[str], tuple[QueryBus, CommandBus]]) -> None:
+class MainWindow(
+    QMainWindow,
+    ReloadCoordinatorMixin,
+    RightPanelMixin,
+    ResetFlowMixin,
+    StashFlowsMixin,
+    BranchFlowsMixin,
+    CherryPickRevertFlowsMixin,
+    TagFlowsMixin,
+    MergeRebaseFlowsMixin,
+    CommitFlowsMixin,
+    RemoteOpQueueMixin,
+    RepoLifecycleMixin,
+):
+    def __init__(
+        self,
+        queries: QueryBus | None,
+        commands: CommandBus | None,
+        repo_store: IRepoStore,
+        remote_tag_cache=None,
+        repo_path: str | None = None,
+        parent=None,
+        *,
+        session_factory: Callable[[str], tuple[QueryBus, CommandBus]],
+    ) -> None:
         super().__init__(parent)
         self._queries = queries
         self._commands = commands
@@ -82,17 +109,20 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlow
         self.setWindowTitle(f"GitCrisp — {self._repo_path}" if self._repo_path else "GitCrisp")
         self.resize(1400, 800)
         self.menuBar().setStyleSheet(
-            "QMenu { padding: 6px; }"
-            "QMenu::item { padding: 6px 24px 6px 20px; }"
+            "QMenu { padding: 6px; }QMenu::item { padding: 6px 24px 6px 20px; }"
         )
         install_appearance_menu(self)
 
     def _build_widgets(self) -> None:
         self._repo_ready_signals = _RepoReadySignals()
-        self._sidebar = SidebarWidget(self._queries, self._commands, self._remote_tag_cache, self._repo_path)
+        self._sidebar = SidebarWidget(
+            self._queries, self._commands, self._remote_tag_cache, self._repo_path
+        )
         self._graph = GraphWidget(self._queries, self._commands, repo_store=self._repo_store)
         self._diff = DiffWidget(self._queries, self._commands)
-        self._working_tree = WorkingTreeWidget(self._queries, self._commands, repo_path=self._repo_path)
+        self._working_tree = WorkingTreeWidget(
+            self._queries, self._commands, repo_path=self._repo_path
+        )
         self._repo_list = RepoListWidget(self._repo_store)
         self._log_panel = LogPanel()
         self._remote_running = False
@@ -100,8 +130,8 @@ class MainWindow(QMainWindow, ReloadCoordinatorMixin, RightPanelMixin, ResetFlow
         self._change_detector = None  # RepoChangeDetector | None
 
         self._right_stack = QStackedWidget()
-        self._right_stack.addWidget(self._diff)           # index 0: commit mode
-        self._right_stack.addWidget(self._working_tree)    # index 1: working tree
+        self._right_stack.addWidget(self._diff)  # index 0: commit mode
+        self._right_stack.addWidget(self._working_tree)  # index 1: working tree
 
     def _build_layout(self) -> None:
         # Vertical splitter for sidebar: branches on top, repos on bottom

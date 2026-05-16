@@ -7,6 +7,7 @@ worst-case pair (muted text on the deepest tinted surface) is the
 binding constraint at ~5:1 — well above the 4.5:1 AA threshold but
 close enough that careless tweaks could break it.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -50,7 +51,4 @@ def test_light_theme_passes_wcag_aa(light_colors, fg_attr, bg_attr, label):
     fg = getattr(light_colors, fg_attr)
     bg = getattr(light_colors, bg_attr)
     ratio = _ratio(fg, bg)
-    assert ratio >= 4.5, (
-        f"{label}: {fg_attr} {fg} on {bg_attr} {bg} "
-        f"= {ratio:.2f}:1 (need ≥ 4.5)"
-    )
+    assert ratio >= 4.5, f"{label}: {fg_attr} {fg} on {bg_attr} {bg} = {ratio:.2f}:1 (need ≥ 4.5)"

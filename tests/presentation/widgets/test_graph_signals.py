@@ -4,12 +4,13 @@ Closes coverage gaps not addressed by test_graph_context_menu.py,
 test_graph_synthetic.py, or test_keyboard_shortcuts.py: row-selection
 emission, scroll_to_oid behavior, reload_with_extra_tip short-circuit,
 set_buses bus-detach, and search-with-pending-load dispatch."""
+
 from __future__ import annotations
+
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-import pytest
-from PySide6.QtCore import Qt, QModelIndex
+from PySide6.QtCore import QModelIndex
 from PySide6.QtWidgets import QWidget
 
 from git_gui.domain.entities import Commit
@@ -19,8 +20,11 @@ from git_gui.presentation.widgets.graph import GraphWidget
 
 def _make_commit(oid: str, msg: str = "m") -> Commit:
     return Commit(
-        oid=oid, message=msg, author="A <a@a.com>",
-        timestamp=datetime(2026, 1, 1), parents=[],
+        oid=oid,
+        message=msg,
+        author="A <a@a.com>",
+        timestamp=datetime(2026, 1, 1),
+        parents=[],
     )
 
 
@@ -79,9 +83,14 @@ def test_on_row_changed_emits_commit_selected_with_oid(qtbot):
 
 
 def test_scroll_to_oid_with_select_sets_current_index(qtbot):
-    w = _make_widget(qtbot, commits=[
-        _make_commit("A"), _make_commit("B"), _make_commit("C"),
-    ])
+    w = _make_widget(
+        qtbot,
+        commits=[
+            _make_commit("A"),
+            _make_commit("B"),
+            _make_commit("C"),
+        ],
+    )
 
     w.scroll_to_oid("B", select=True)
 
@@ -101,9 +110,13 @@ def test_scroll_to_oid_with_select_sets_current_index(qtbot):
 def test_reload_with_extra_tip_short_circuits_when_oid_present(qtbot):
     """When the clicked branch's tip is already in the model, scroll-and-
     select it directly via scroll_to_oid(select=True) — no reload needed."""
-    w = _make_widget(qtbot, commits=[
-        _make_commit("HEAD"), _make_commit("BRANCH"),
-    ])
+    w = _make_widget(
+        qtbot,
+        commits=[
+            _make_commit("HEAD"),
+            _make_commit("BRANCH"),
+        ],
+    )
     w.reload = MagicMock()
 
     w.reload_with_extra_tip("BRANCH")
@@ -185,10 +198,12 @@ def test_on_reload_done_retries_when_merge_base_not_loaded(qtbot):
     True and the limit is below the cap, reload is called again with the
     limit doubled."""
     from git_gui.presentation.models.graph_model import GraphModel
+
     w = _make_widget(qtbot, commits=[_make_commit("HEAD"), _make_commit("DIV")])
     # Reset model so the on_reload_done loop sees the loaded set after this call.
     w._model = GraphModel(
-        [_make_commit("HEAD"), _make_commit("DIV")], {},
+        [_make_commit("HEAD"), _make_commit("DIV")],
+        {},
     )
     w._pending_scroll_oid = "DIV"
     w._pending_merge_base = "BASE"  # NOT in the loaded set
@@ -201,8 +216,13 @@ def test_on_reload_done_retries_when_merge_base_not_loaded(qtbot):
 
     w._on_reload_done(
         commits=[_make_commit("HEAD"), _make_commit("DIV")],
-        branches=[], tags=[], is_dirty=False, head_oid="HEAD",
-        repo_state_info=None, merge_head=None, first_parent=False,
+        branches=[],
+        tags=[],
+        is_dirty=False,
+        head_oid="HEAD",
+        repo_state_info=None,
+        merge_head=None,
+        first_parent=False,
     )
 
     # Pending state preserved; reload called again with doubled limit.
@@ -215,12 +235,23 @@ def test_on_reload_done_scrolls_when_target_and_base_both_loaded(qtbot):
     """When both target and merge base are in the loaded set, scroll and
     clear pending state — no further reload."""
     from git_gui.presentation.models.graph_model import GraphModel
-    w = _make_widget(qtbot, commits=[
-        _make_commit("HEAD"), _make_commit("DIV"), _make_commit("BASE"),
-    ])
-    w._model = GraphModel([
-        _make_commit("HEAD"), _make_commit("DIV"), _make_commit("BASE"),
-    ], {})
+
+    w = _make_widget(
+        qtbot,
+        commits=[
+            _make_commit("HEAD"),
+            _make_commit("DIV"),
+            _make_commit("BASE"),
+        ],
+    )
+    w._model = GraphModel(
+        [
+            _make_commit("HEAD"),
+            _make_commit("DIV"),
+            _make_commit("BASE"),
+        ],
+        {},
+    )
     w._pending_scroll_oid = "DIV"
     w._pending_merge_base = "BASE"
     w._has_more = True
@@ -230,10 +261,17 @@ def test_on_reload_done_scrolls_when_target_and_base_both_loaded(qtbot):
 
     w._on_reload_done(
         commits=[
-            _make_commit("HEAD"), _make_commit("DIV"), _make_commit("BASE"),
+            _make_commit("HEAD"),
+            _make_commit("DIV"),
+            _make_commit("BASE"),
         ],
-        branches=[], tags=[], is_dirty=False, head_oid="HEAD",
-        repo_state_info=None, merge_head=None, first_parent=False,
+        branches=[],
+        tags=[],
+        is_dirty=False,
+        head_oid="HEAD",
+        repo_state_info=None,
+        merge_head=None,
+        first_parent=False,
     )
 
     assert w._pending_scroll_oid is None
@@ -252,9 +290,11 @@ def test_on_reload_done_gives_up_at_max_reload_limit(qtbot):
     is still not loaded, clear pending state and stop retrying."""
     from git_gui.presentation.models.graph_model import GraphModel
     from git_gui.presentation.widgets.graph import MAX_RELOAD_LIMIT
+
     w = _make_widget(qtbot, commits=[_make_commit("HEAD"), _make_commit("DIV")])
     w._model = GraphModel(
-        [_make_commit("HEAD"), _make_commit("DIV")], {},
+        [_make_commit("HEAD"), _make_commit("DIV")],
+        {},
     )
     w._pending_scroll_oid = "DIV"
     w._pending_merge_base = "BASE"  # not in the loaded set
@@ -265,8 +305,13 @@ def test_on_reload_done_gives_up_at_max_reload_limit(qtbot):
 
     w._on_reload_done(
         commits=[_make_commit("HEAD"), _make_commit("DIV")],
-        branches=[], tags=[], is_dirty=False, head_oid="HEAD",
-        repo_state_info=None, merge_head=None, first_parent=False,
+        branches=[],
+        tags=[],
+        is_dirty=False,
+        head_oid="HEAD",
+        repo_state_info=None,
+        merge_head=None,
+        first_parent=False,
     )
 
     assert w._pending_scroll_oid is None
@@ -288,9 +333,7 @@ def test_reload_preserves_extra_tips_when_called_without_args(qtbot):
     with patch("threading.Thread"):
         w.reload()
 
-    assert w._extra_tips == ["DIV"], (
-        "bare reload() must preserve the user-selected extra tips"
-    )
+    assert w._extra_tips == ["DIV"], "bare reload() must preserve the user-selected extra tips"
 
 
 def test_reload_with_explicit_extra_tips_replaces_current(qtbot):
@@ -338,7 +381,6 @@ def test_reload_preserves_reload_limit_when_called_without_args(qtbot):
     auto-reload from MainWindow._reload must NOT regress to PAGE_SIZE — that
     would drop the merge base from the loaded set and revert the diverged
     lane to a floating circle."""
-    from git_gui.presentation.widgets.graph import PAGE_SIZE
     w = _make_widget(qtbot)
     w._extra_tips = ["DIV"]
     w._reload_limit = 200
@@ -346,9 +388,7 @@ def test_reload_preserves_reload_limit_when_called_without_args(qtbot):
     with patch("threading.Thread"):
         w.reload()
 
-    assert w._reload_limit == 200, (
-        "bare reload() must not regress _reload_limit to PAGE_SIZE"
-    )
+    assert w._reload_limit == 200, "bare reload() must not regress _reload_limit to PAGE_SIZE"
 
 
 def test_reload_with_explicit_limit_replaces_current(qtbot):
@@ -366,9 +406,13 @@ def test_reload_with_extra_tip_selects_clicked_branch_tip(qtbot):
     """Clicking a branch in the sidebar should scroll the graph to the
     branch's tip and select it — the diff pane updates to show that
     tip's commit (the branch the user navigated to)."""
-    w = _make_widget(qtbot, commits=[
-        _make_commit("HEAD"), _make_commit("BRANCH_TIP"),
-    ])
+    w = _make_widget(
+        qtbot,
+        commits=[
+            _make_commit("HEAD"),
+            _make_commit("BRANCH_TIP"),
+        ],
+    )
     w.reload = MagicMock()
 
     w.reload_with_extra_tip("BRANCH_TIP")
@@ -401,16 +445,23 @@ def test_on_reload_done_restores_selection_without_scrolling(qtbot):
     re-select the row matching _selected_oid via the selection model with
     full-row flags. The selection model path doesn't auto-scroll, so the
     gate's scroll position is preserved."""
-    from git_gui.presentation.models.graph_model import GraphModel
     from PySide6.QtCore import QItemSelectionModel
+
+    from git_gui.presentation.models.graph_model import GraphModel
+
     w = _make_widget(qtbot)
     w._selected_oid = "HEAD"
     w._model = GraphModel([_make_commit("HEAD"), _make_commit("OTHER")], {})
 
     w._on_reload_done(
         commits=[_make_commit("HEAD"), _make_commit("OTHER")],
-        branches=[], tags=[], is_dirty=False, head_oid="HEAD",
-        repo_state_info=None, merge_head=None, first_parent=False,
+        branches=[],
+        tags=[],
+        is_dirty=False,
+        head_oid="HEAD",
+        repo_state_info=None,
+        merge_head=None,
+        first_parent=False,
     )
 
     sm_set_current = w._view.selectionModel().setCurrentIndex
@@ -425,14 +476,20 @@ def test_on_reload_done_restores_selection_without_scrolling(qtbot):
 def test_on_reload_done_skips_restore_when_selected_oid_is_none(qtbot):
     """If no commit was previously selected, no restore happens."""
     from git_gui.presentation.models.graph_model import GraphModel
+
     w = _make_widget(qtbot)
     w._selected_oid = None
     w._model = GraphModel([_make_commit("HEAD")], {})
 
     w._on_reload_done(
         commits=[_make_commit("HEAD")],
-        branches=[], tags=[], is_dirty=False, head_oid="HEAD",
-        repo_state_info=None, merge_head=None, first_parent=False,
+        branches=[],
+        tags=[],
+        is_dirty=False,
+        head_oid="HEAD",
+        repo_state_info=None,
+        merge_head=None,
+        first_parent=False,
     )
 
     assert w._view.selectionModel().setCurrentIndex.call_count == 0
@@ -442,6 +499,7 @@ def test_on_reload_done_skips_restore_during_retry(qtbot):
     """When the gate triggers a retry, the model is about to be reset again
     by the next reload — skip the restore to avoid wasted work."""
     from git_gui.presentation.models.graph_model import GraphModel
+
     w = _make_widget(qtbot)
     w._selected_oid = "HEAD"
     w._model = GraphModel([_make_commit("HEAD"), _make_commit("DIV")], {})
@@ -454,8 +512,13 @@ def test_on_reload_done_skips_restore_during_retry(qtbot):
 
     w._on_reload_done(
         commits=[_make_commit("HEAD"), _make_commit("DIV")],
-        branches=[], tags=[], is_dirty=False, head_oid="HEAD",
-        repo_state_info=None, merge_head=None, first_parent=False,
+        branches=[],
+        tags=[],
+        is_dirty=False,
+        head_oid="HEAD",
+        repo_state_info=None,
+        merge_head=None,
+        first_parent=False,
     )
 
     # Retry was triggered — restore should not have run.
@@ -480,6 +543,7 @@ def test_set_buses_resets_reload_limit_to_page_size(qtbot):
     starts fresh — otherwise a previously-doubled limit (up to 2000) would
     over-load on the new repo's first render."""
     from git_gui.presentation.widgets.graph import PAGE_SIZE
+
     w = _make_widget(qtbot)
     w._reload_limit = 1600
 
@@ -494,9 +558,11 @@ def test_on_reload_done_skips_base_check_when_pending_merge_base_is_none(qtbot):
     disjoint histories), only the target gate applies — same as today's
     behavior."""
     from git_gui.presentation.models.graph_model import GraphModel
+
     w = _make_widget(qtbot, commits=[_make_commit("HEAD"), _make_commit("DIV")])
     w._model = GraphModel(
-        [_make_commit("HEAD"), _make_commit("DIV")], {},
+        [_make_commit("HEAD"), _make_commit("DIV")],
+        {},
     )
     w._pending_scroll_oid = "DIV"
     w._pending_merge_base = None
@@ -507,8 +573,13 @@ def test_on_reload_done_skips_base_check_when_pending_merge_base_is_none(qtbot):
 
     w._on_reload_done(
         commits=[_make_commit("HEAD"), _make_commit("DIV")],
-        branches=[], tags=[], is_dirty=False, head_oid="HEAD",
-        repo_state_info=None, merge_head=None, first_parent=False,
+        branches=[],
+        tags=[],
+        is_dirty=False,
+        head_oid="HEAD",
+        repo_state_info=None,
+        merge_head=None,
+        first_parent=False,
     )
 
     # Target loaded + base check skipped → scroll, no retry.

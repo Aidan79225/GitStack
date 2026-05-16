@@ -1,12 +1,16 @@
 from unittest.mock import MagicMock
 
+from git_gui.application.commands import (
+    CherryPickAbort,
+    CherryPickCommit,
+    CherryPickContinue,
+    ResetBranch,
+    RevertAbort,
+    RevertCommit,
+    RevertContinue,
+)
 from git_gui.domain.entities import ResetMode
 from git_gui.domain.ports import IRepositoryWriter
-from git_gui.application.commands import (
-    CherryPickCommit, RevertCommit, ResetBranch,
-    CherryPickAbort, CherryPickContinue,
-    RevertAbort, RevertContinue,
-)
 
 
 def _writer():

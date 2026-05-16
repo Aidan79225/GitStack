@@ -3,7 +3,9 @@
 Every abstract method declared on IRepositoryReader and IRepositoryWriter
 must be resolvable on Pygit2Repository and callable. Guards against a
 method accidentally dropped during the mixin extraction."""
+
 from __future__ import annotations
+
 import inspect
 
 from git_gui.domain.ports import IRepositoryReader, IRepositoryWriter
@@ -12,7 +14,8 @@ from git_gui.infrastructure.pygit2 import Pygit2Repository
 
 def _abstract_method_names(port) -> list[str]:
     return [
-        name for name, obj in inspect.getmembers(port, predicate=inspect.isfunction)
+        name
+        for name, obj in inspect.getmembers(port, predicate=inspect.isfunction)
         if not name.startswith("_")
     ]
 

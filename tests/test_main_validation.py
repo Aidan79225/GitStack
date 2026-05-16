@@ -1,7 +1,4 @@
 import pygit2
-import pytest
-from pathlib import Path
-
 
 from main import _is_git_repo
 
@@ -68,6 +65,7 @@ class TestFindValidRepoPruning:
         store.save()
 
         from main import _find_valid_repo
+
         result = _find_valid_repo(store)
         assert result is None
         assert store.get_active() is None

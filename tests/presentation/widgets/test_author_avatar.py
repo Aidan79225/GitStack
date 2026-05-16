@@ -1,12 +1,14 @@
 """Tests for author_avatar: initials extraction, color assignment, paint_avatar."""
+
 from __future__ import annotations
 
-import pytest
 from PySide6.QtCore import QRect
 from PySide6.QtGui import QColor, QImage, QPainter
 
 from git_gui.presentation.widgets.author_avatar import (
-    _initials, _color_for_author, paint_avatar,
+    _color_for_author,
+    _initials,
+    paint_avatar,
 )
 
 

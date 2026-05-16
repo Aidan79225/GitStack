@@ -1,14 +1,21 @@
 # git_gui/presentation/widgets/commit_detail.py
 from __future__ import annotations
+
 from PySide6.QtCore import QRect, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter
 from PySide6.QtWidgets import QWidget
+
 from git_gui.domain.entities import Commit
-from git_gui.presentation.theme import get_theme_manager, connect_widget
+from git_gui.presentation.theme import connect_widget, get_theme_manager
 from git_gui.presentation.widgets.author_avatar import paint_avatar
 from git_gui.presentation.widgets.avatar_loader import get_avatar_loader
 from git_gui.presentation.widgets.ref_badge_delegate import (
-    _badge_color, _badge_display_name, BADGE_RADIUS, BADGE_H_PAD, BADGE_V_PAD, BADGE_GAP,
+    BADGE_GAP,
+    BADGE_H_PAD,
+    BADGE_RADIUS,
+    BADGE_V_PAD,
+    _badge_color,
+    _badge_display_name,
 )
 
 
@@ -144,10 +151,12 @@ class CommitDetailWidget(QWidget):
 
     def mousePressEvent(self, event) -> None:
         pos = event.position().toPoint()
-        if (event.button() == Qt.LeftButton
-                and self._oid_rect is not None
-                and self._oid_rect.contains(pos)
-                and self._commit is not None):
+        if (
+            event.button() == Qt.LeftButton
+            and self._oid_rect is not None
+            and self._oid_rect.contains(pos)
+            and self._commit is not None
+        ):
             self.commit_oid_copy_requested.emit(self._commit.oid)
             event.accept()
             return

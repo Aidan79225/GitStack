@@ -1,8 +1,10 @@
 # git_gui/presentation/widgets/commit_info_delegate.py
 from __future__ import annotations
-from PySide6.QtCore import Qt, QRect, QSize
+
+from PySide6.QtCore import QRect, QSize, Qt
 from PySide6.QtGui import QBrush, QColor, QFontMetrics, QPainter
 from PySide6.QtWidgets import QStyle, QStyledItemDelegate, QStyleOptionViewItem
+
 from git_gui.presentation.theme import get_theme_manager
 from git_gui.presentation.widgets.ref_badge_delegate import _badge_color, _badge_display_name
 
@@ -24,11 +26,12 @@ BADGE_H_PAD = 4
 BADGE_V_PAD = 2
 BADGE_GAP = 4
 
-CELL_PAD = 4              # horizontal padding inside cell
+CELL_PAD = 4  # horizontal padding inside cell
 
 
-def _badge_line_count(fm: QFontMetrics, branch_names: list[str],
-                      first_line_width: int, full_width: int) -> int:
+def _badge_line_count(
+    fm: QFontMetrics, branch_names: list[str], first_line_width: int, full_width: int
+) -> int:
     """Compute how many lines badges need, given first-line and subsequent-line widths."""
     if not branch_names:
         return 1
@@ -49,6 +52,7 @@ def _badge_line_count(fm: QFontMetrics, branch_names: list[str],
 class CommitInfoDelegate(QStyledItemDelegate):
     def sizeHint(self, option: QStyleOptionViewItem, index) -> QSize:
         from git_gui.presentation.models.graph_model import CommitInfo
+
         fm = option.fontMetrics
         line_h = fm.height()
         header_h = line_h + 8
@@ -67,6 +71,7 @@ class CommitInfoDelegate(QStyledItemDelegate):
 
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:
         from git_gui.presentation.models.graph_model import CommitInfo
+
         info: CommitInfo | None = index.data(Qt.UserRole + 1)
         if info is None:
             super().paint(painter, option, index)
@@ -133,8 +138,6 @@ class CommitInfoDelegate(QStyledItemDelegate):
         # ── Message area: word-wrap, max 3 lines, elide with "..." ────────────
         msg_top = rect.top() + header_h * (1 + badge_lines)
         msg_w = rect.width() - CELL_PAD * 2
-        msg_h = rect.bottom() - msg_top
-        r3 = QRect(rect.left() + CELL_PAD, msg_top, msg_w, msg_h)
         painter.setPen(_muted_color())
 
         max_lines = 3

@@ -26,7 +26,9 @@ class ReloadCoordinatorMixin:
             try:
                 state_info = self._queries.get_repo_state.execute()
                 state_name = state_info.state.name
-                merge_msg = self._queries.get_merge_msg.execute() if state_name == "MERGING" else None
+                merge_msg = (
+                    self._queries.get_merge_msg.execute() if state_name == "MERGING" else None
+                )
                 self._working_tree.update_conflict_banner(state_name, merge_msg)
                 self._diff.update_state_banner(state_name)
             except Exception:

@@ -1,8 +1,8 @@
 from __future__ import annotations
+
 import pytest
 
 from git_gui.presentation.theme.loader import load_builtin
-
 
 SYNTAX_ROLES = [
     "syntax_keyword",

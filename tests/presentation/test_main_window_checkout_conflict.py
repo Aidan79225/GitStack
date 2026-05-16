@@ -1,5 +1,5 @@
 from unittest.mock import MagicMock, patch
-import pytest
+
 from PySide6.QtWidgets import QMessageBox
 
 from git_gui.domain.entities import Branch
@@ -12,7 +12,9 @@ def _make_window(qtbot):
     repo_store.get_recent_repos.return_value = []
     repo_store.get_active.return_value = None
     win = MainWindow(
-        queries=None, commands=None, repo_store=repo_store,
+        queries=None,
+        commands=None,
+        repo_store=repo_store,
         session_factory=lambda _p: (MagicMock(), MagicMock()),
     )
     qtbot.addWidget(win)
@@ -34,20 +36,22 @@ def _wire_buses(win):
 def test_conflict_yes_resets_local(qtbot):
     win = _make_window(qtbot)
     queries, commands = _wire_buses(win)
-    with patch.object(QMessageBox, "question", return_value=QMessageBox.Yes), \
-         patch.object(win, "_reload"):
+    with (
+        patch.object(QMessageBox, "question", return_value=QMessageBox.Yes),
+        patch.object(win, "_reload"),
+    ):
         win._on_checkout_branch("origin/feature")
     commands.checkout.execute.assert_called_once_with("feature")
-    commands.reset_branch_to_ref.execute.assert_called_once_with(
-        "feature", "origin/feature"
-    )
+    commands.reset_branch_to_ref.execute.assert_called_once_with("feature", "origin/feature")
 
 
 def test_conflict_cancel_does_nothing(qtbot):
     win = _make_window(qtbot)
     queries, commands = _wire_buses(win)
-    with patch.object(QMessageBox, "question", return_value=QMessageBox.Cancel), \
-         patch.object(win, "_reload"):
+    with (
+        patch.object(QMessageBox, "question", return_value=QMessageBox.Cancel),
+        patch.object(win, "_reload"),
+    ):
         win._on_checkout_branch("origin/feature")
     commands.checkout.execute.assert_not_called()
     commands.reset_branch_to_ref.execute.assert_not_called()
@@ -74,8 +78,6 @@ def test_local_branch_with_slash_uses_local_checkout(qtbot):
     ]
     with patch.object(win, "_reload"):
         win._on_checkout_branch("feature/android-pr-quality-checks")
-    commands.checkout.execute.assert_called_once_with(
-        "feature/android-pr-quality-checks"
-    )
+    commands.checkout.execute.assert_called_once_with("feature/android-pr-quality-checks")
     commands.checkout_remote_branch.execute.assert_not_called()
     commands.reset_branch_to_ref.execute.assert_not_called()
