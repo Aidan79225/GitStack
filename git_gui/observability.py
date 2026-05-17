@@ -1,9 +1,14 @@
-"""Crash reporting via Sentry (opt-in by env var).
+"""Crash reporting via Sentry (opt-in).
 
-Disabled unless ``GITCRISP_SENTRY_DSN`` is set, so local dev runs never
-ship events. Performance/profile sampling is forced to zero — the free
-tier's quota is 5k errors/month and the desktop population doesn't
-need transaction tracing.
+DSN resolution order:
+1. ``git_gui._build_config.DSN`` — baked in at release build time so
+   distributed binaries report crashes without the user touching anything.
+2. ``GITCRISP_SENTRY_DSN`` env var — for local dev or self-built runs.
+
+Sentry stays disabled when neither source provides a value, so local
+dev never ships events by accident. Performance/profile sampling is
+forced to zero — the free tier's quota is 5k errors/month and the
+desktop population doesn't need transaction tracing.
 
 ``before_send`` redacts the user's HOME path from exception messages
 and breadcrumbs, since repo paths frequently contain real names.
@@ -19,7 +24,27 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def _get_baked_config() -> tuple[str | None, str | None]:
+    """Read DSN + version from a build-time-generated module if present."""
+    try:
+        from git_gui import _build_config  # type: ignore[attr-defined]
+    except ImportError:
+        return None, None
+    return (
+        getattr(_build_config, "DSN", None) or None,
+        getattr(_build_config, "VERSION", None) or None,
+    )
+
+
+def _get_dsn() -> str | None:
+    baked, _ = _get_baked_config()
+    return baked or os.environ.get("GITCRISP_SENTRY_DSN")
+
+
 def _get_version() -> str:
+    _, baked_version = _get_baked_config()
+    if baked_version:
+        return baked_version
     try:
         from importlib.metadata import PackageNotFoundError, version
 
@@ -46,14 +71,14 @@ def _before_send(event: dict[str, Any], hint: dict[str, Any]) -> dict[str, Any] 
 
 
 def init_crash_reporting() -> bool:
-    """Initialize Sentry if ``GITCRISP_SENTRY_DSN`` is set.
+    """Initialize Sentry if a DSN is available (baked or env var).
 
     Returns True if Sentry was initialized, False otherwise.
     Safe to call multiple times — the SDK itself is idempotent.
     """
-    dsn = os.environ.get("GITCRISP_SENTRY_DSN")
+    dsn = _get_dsn()
     if not dsn:
-        logger.debug("GITCRISP_SENTRY_DSN not set; crash reporting disabled")
+        logger.debug("No Sentry DSN available; crash reporting disabled")
         return False
     try:
         import sentry_sdk
