@@ -26,8 +26,10 @@ from git_gui.presentation.main_window.reset_flow import ResetFlowMixin
 from git_gui.presentation.main_window.right_panel import RightPanelMixin
 from git_gui.presentation.main_window.stash_flows import StashFlowsMixin
 from git_gui.presentation.main_window.tag_flows import TagFlowsMixin
+from git_gui.presentation.main_window.update_flow import UpdateFlowMixin
 from git_gui.presentation.menus.appearance import install_appearance_menu
 from git_gui.presentation.menus.git_menu import install_git_menu
+from git_gui.presentation.menus.help_menu import install_help_menu
 from git_gui.presentation.widgets.diff import DiffWidget
 from git_gui.presentation.widgets.graph import GraphWidget
 from git_gui.presentation.widgets.log_panel import LogPanel
@@ -49,6 +51,7 @@ class MainWindow(
     CommitFlowsMixin,
     RemoteOpQueueMixin,
     RepoLifecycleMixin,
+    UpdateFlowMixin,
 ):
     def __init__(
         self,
@@ -104,6 +107,7 @@ class MainWindow(
         if self._queries is not None:
             self._reload()
         self._repo_list.reload()
+        self._start_update_check()
 
     def _build_chrome(self) -> None:
         self.setWindowTitle(f"GitCrisp — {self._repo_path}" if self._repo_path else "GitCrisp")
@@ -112,6 +116,7 @@ class MainWindow(
             "QMenu { padding: 6px; }QMenu::item { padding: 6px 24px 6px 20px; }"
         )
         install_appearance_menu(self)
+        install_help_menu(self)
 
     def _build_widgets(self) -> None:
         self._repo_ready_signals = _RepoReadySignals()
