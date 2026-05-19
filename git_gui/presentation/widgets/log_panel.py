@@ -56,7 +56,7 @@ class LogPanel(QWidget):
         # Recolor existing log lines by reapplying the default format to
         # everything that isn't an error line. We can't tell which is
         # which after the fact, so just normalize the whole document
-        # foreground via QPlainTextEdit's palette + char format.
+        # foreground via the document's char format.
         cursor = self._body.textCursor()
         cursor.select(QTextCursor.Document)
         cursor.mergeCharFormat(self._fmt_default)

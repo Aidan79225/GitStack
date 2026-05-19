@@ -116,7 +116,6 @@ class MainWindow(
             "QMenu { padding: 6px; }QMenu::item { padding: 6px 24px 6px 20px; }"
         )
         install_appearance_menu(self)
-        install_help_menu(self)
 
     def _build_widgets(self) -> None:
         self._repo_ready_signals = _RepoReadySignals()
@@ -188,3 +187,4 @@ class MainWindow(
             repo_workdir=self._repo_path,
             on_open_submodule=self._on_submodule_open_requested,
         )
+        install_help_menu(self)
