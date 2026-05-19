@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import QMessageBox
 
+from git_gui.presentation.dialogs.identity_dialog import ensure_identity
+
 
 class StashFlowsMixin:
     """Stash operations — pop, apply, drop, create, and clicked preview.
@@ -53,6 +55,8 @@ class StashFlowsMixin:
             "This will save your modifications and revert the working directory to a clean state.",
         )
         if result != QMessageBox.Yes:
+            return
+        if not ensure_identity(self, self._queries, self._commands):
             return
         branch = self._get_current_branch() or "unknown"
         try:

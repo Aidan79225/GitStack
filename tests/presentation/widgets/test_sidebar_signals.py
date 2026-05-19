@@ -172,17 +172,65 @@ def test_single_click_stash_emits_stash_clicked_with_oid(sidebar, qtbot):
 # -- 2. Double-click branch -----------------------------------------------
 
 
-def test_double_click_branch_executes_checkout_and_emits_signal(sidebar, qtbot):
+def test_double_click_local_branch_emits_checkout_branch_requested(sidebar, qtbot):
     w, _, commands = sidebar
     item = _branch_item("feature", "abc123")
     _add_section(w, "LOCAL BRANCHES", [item])
     idx = w._model.indexFromItem(item)
 
-    with qtbot.waitSignal(w.branch_checkout_requested, timeout=1000) as blocker:
+    with qtbot.waitSignal(w.checkout_branch_requested, timeout=1000) as blocker:
         w._on_double_click(idx)
 
-    commands.checkout.execute.assert_called_once_with("feature")
+    commands.checkout.execute.assert_not_called()
     assert blocker.args == ["feature"]
+
+
+def test_double_click_branch_emits_checkout_branch_requested(qtbot):
+    """Double-clicking a local branch emits the new unified signal."""
+    queries, commands = MagicMock(), MagicMock()
+    sidebar = SidebarWidget(queries=queries, commands=commands)
+    qtbot.addWidget(sidebar)
+    item = _branch_item("feature/foo", "abc")
+    sidebar._model.appendRow(item)
+    received: list[str] = []
+    sidebar.checkout_branch_requested.connect(received.append)
+
+    sidebar._on_double_click(sidebar._model.indexFromItem(item))
+
+    assert received == ["feature/foo"]
+    commands.checkout.execute.assert_not_called()
+
+
+def test_double_click_remote_branch_emits_checkout_branch_requested(qtbot):
+    """Double-clicking a remote branch emits the same signal (previously did nothing)."""
+    queries, commands = MagicMock(), MagicMock()
+    sidebar = SidebarWidget(queries=queries, commands=commands)
+    qtbot.addWidget(sidebar)
+    item = _remote_branch_item("origin/feature/foo", "abc")
+    sidebar._model.appendRow(item)
+    received: list[str] = []
+    sidebar.checkout_branch_requested.connect(received.append)
+
+    sidebar._on_double_click(sidebar._model.indexFromItem(item))
+
+    assert received == ["origin/feature/foo"]
+    commands.checkout.execute.assert_not_called()
+
+
+def test_double_click_stash_does_not_emit_checkout(qtbot):
+    """Non-branch items must not trigger the checkout signal."""
+    queries, commands = MagicMock(), MagicMock()
+    sidebar = SidebarWidget(queries=queries, commands=commands)
+    qtbot.addWidget(sidebar)
+    # Use existing _stash_item helper from the top of the file
+    item = _stash_item("WIP", 0, "deadbeef")
+    sidebar._model.appendRow(item)
+    received: list[str] = []
+    sidebar.checkout_branch_requested.connect(received.append)
+
+    sidebar._on_double_click(sidebar._model.indexFromItem(item))
+
+    assert received == []
 
 
 # -- 3. Context menu: remote-branch fetch parses remote name --------------

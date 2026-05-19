@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -12,6 +14,10 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from git_gui.presentation.bus import CommandBus, QueryBus
+
+logger = logging.getLogger(__name__)
 
 
 class IdentityDialog(QDialog):
@@ -70,3 +76,25 @@ class IdentityDialog(QDialog):
             self._email_edit.text().strip(),
             self._global_check.isChecked(),
         )
+
+
+def ensure_identity(parent: QWidget, queries: QueryBus, commands: CommandBus) -> bool:
+    """Prompt for git identity if not yet configured.
+
+    Returns True if identity is already set, or the user successfully
+    set it via the dialog. Returns False if the user cancelled or
+    saving failed; the caller decides any error messaging.
+    """
+    name, email = queries.get_identity.execute()
+    if name and email:
+        return True
+    dlg = IdentityDialog(name, email, parent=parent)
+    if dlg.exec() != QDialog.Accepted:
+        return False
+    new_name, new_email, global_ = dlg.values()
+    try:
+        commands.set_identity.execute(new_name, new_email, global_)
+    except Exception:
+        logger.exception("Failed to save git identity")
+        return False
+    return True
