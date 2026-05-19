@@ -17,6 +17,9 @@ import json
 import logging
 import urllib.request
 
+from packaging.version import InvalidVersion, Version
+from PySide6.QtCore import QObject, QThread, Signal
+
 logger = logging.getLogger(__name__)
 
 LATEST_RELEASE_URL = "https://api.github.com/repos/Aidan79225/GitCrisp/releases/latest"
@@ -42,3 +45,60 @@ def fetch_latest_release(url: str) -> tuple[str, str] | None:
         logger.debug("Update check payload missing tag_name/html_url")
         return None
     return tag, url_
+
+
+class _CheckWorker(QObject):
+    finished = Signal(object)  # tuple[str, str] | None
+
+    def __init__(self, url: str) -> None:
+        super().__init__()
+        self._url = url
+
+    def run(self) -> None:
+        self.finished.emit(fetch_latest_release(self._url))
+
+
+class UpdateChecker(QObject):
+    """Background GitHub release check. Emits when a newer release is found.
+
+    Owns its worker thread. ``check()`` is fire-and-forget; if you need
+    to re-check later, just call it again.
+    """
+
+    update_available = Signal(str, str)  # (version_tag, html_url)
+
+    def __init__(
+        self,
+        current_version: str,
+        url: str = LATEST_RELEASE_URL,
+        parent: QObject | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._current_version = current_version
+        self._url = url
+        self._thread: QThread | None = None
+        self._worker: _CheckWorker | None = None
+
+    def check(self) -> None:
+        self._thread = QThread()
+        self._worker = _CheckWorker(self._url)
+        self._worker.moveToThread(self._thread)
+        self._thread.started.connect(self._worker.run)
+        self._worker.finished.connect(self._on_finished)
+        self._worker.finished.connect(self._thread.quit)
+        self._thread.finished.connect(self._worker.deleteLater)
+        self._thread.finished.connect(self._thread.deleteLater)
+        self._thread.start()
+
+    def _on_finished(self, result: tuple[str, str] | None) -> None:
+        if result is None:
+            return
+        tag, url = result
+        try:
+            remote = Version(tag.lstrip("v"))
+            current = Version(self._current_version.lstrip("v"))
+        except InvalidVersion as e:
+            logger.debug("Update check version parse failed: %s", e)
+            return
+        if remote > current:
+            self.update_available.emit(tag, url)

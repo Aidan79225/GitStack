@@ -55,3 +55,80 @@ def test_returns_none_on_malformed_json():
     resp.__exit__ = MagicMock(return_value=False)
     with patch("urllib.request.urlopen", return_value=resp):
         assert fetch_latest_release("https://api.github.com/...") is None
+
+
+from unittest.mock import patch as _patch
+
+
+def test_update_checker_emits_when_remote_is_newer(qtbot):
+    from git_gui.presentation.services.update_checker import UpdateChecker
+
+    checker = UpdateChecker(current_version="0.15.1")
+    fake_result = ("v0.16.0", "https://github.com/.../releases/tag/v0.16.0")
+    with _patch(
+        "git_gui.presentation.services.update_checker.fetch_latest_release",
+        return_value=fake_result,
+    ):
+        with qtbot.waitSignal(checker.update_available, timeout=2000) as blocker:
+            checker.check()
+    assert blocker.args == ["v0.16.0", "https://github.com/.../releases/tag/v0.16.0"]
+
+
+def test_update_checker_silent_when_remote_equal(qtbot):
+    from git_gui.presentation.services.update_checker import UpdateChecker
+
+    checker = UpdateChecker(current_version="0.16.0")
+    received: list[tuple] = []
+    checker.update_available.connect(lambda *a: received.append(a))
+    with _patch(
+        "git_gui.presentation.services.update_checker.fetch_latest_release",
+        return_value=("v0.16.0", "https://..."),
+    ):
+        checker.check()
+        qtbot.wait(200)
+    assert received == []
+
+
+def test_update_checker_silent_when_remote_older(qtbot):
+    from git_gui.presentation.services.update_checker import UpdateChecker
+
+    checker = UpdateChecker(current_version="0.16.0")
+    received: list[tuple] = []
+    checker.update_available.connect(lambda *a: received.append(a))
+    with _patch(
+        "git_gui.presentation.services.update_checker.fetch_latest_release",
+        return_value=("v0.15.1", "https://..."),
+    ):
+        checker.check()
+        qtbot.wait(200)
+    assert received == []
+
+
+def test_update_checker_silent_when_fetch_returns_none(qtbot):
+    from git_gui.presentation.services.update_checker import UpdateChecker
+
+    checker = UpdateChecker(current_version="0.15.1")
+    received: list[tuple] = []
+    checker.update_available.connect(lambda *a: received.append(a))
+    with _patch(
+        "git_gui.presentation.services.update_checker.fetch_latest_release",
+        return_value=None,
+    ):
+        checker.check()
+        qtbot.wait(200)
+    assert received == []
+
+
+def test_update_checker_silent_when_remote_tag_unparseable(qtbot):
+    from git_gui.presentation.services.update_checker import UpdateChecker
+
+    checker = UpdateChecker(current_version="0.15.1")
+    received: list[tuple] = []
+    checker.update_available.connect(lambda *a: received.append(a))
+    with _patch(
+        "git_gui.presentation.services.update_checker.fetch_latest_release",
+        return_value=("nightly-foo", "https://..."),
+    ):
+        checker.check()
+        qtbot.wait(200)
+    assert received == []
