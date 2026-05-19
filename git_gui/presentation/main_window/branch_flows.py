@@ -12,7 +12,7 @@ class BranchFlowsMixin:
     """
 
     def _wire_branch_flow_signals(self) -> None:
-        self._sidebar.branch_checkout_requested.connect(self._on_branch_changed)
+        self._sidebar.checkout_branch_requested.connect(self._on_checkout_branch)
         self._sidebar.branch_delete_requested.connect(self._on_delete_branch)
         self._sidebar.remote_branch_delete_requested.connect(self._on_delete_remote_branch)
         self._graph.remote_branch_delete_requested.connect(self._on_delete_remote_branch)
@@ -20,16 +20,6 @@ class BranchFlowsMixin:
         self._graph.create_branch_requested.connect(self._on_create_branch)
         self._graph.checkout_commit_requested.connect(self._on_checkout_commit)
         self._graph.checkout_branch_requested.connect(self._on_checkout_branch)
-
-    def _on_branch_changed(self, branch: str) -> None:
-        if self._queries is None:
-            return
-        self._sidebar.reload()
-        head_oid = self._queries.get_head_oid.execute()
-        if head_oid:
-            self._graph.reload_and_scroll_to(head_oid)
-        else:
-            self._graph.reload()
 
     def _on_delete_branch(self, branch: str) -> None:
         try:
@@ -110,3 +100,7 @@ class BranchFlowsMixin:
             self._log_panel.expand()
             self._log_panel.log_error(f"Checkout {name} — ERROR: {e}")
         self._reload()
+        if self._queries is not None:
+            head_oid = self._queries.get_head_oid.execute()
+            if head_oid:
+                self._graph.scroll_to_oid(head_oid, select=True)

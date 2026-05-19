@@ -81,3 +81,14 @@ def test_local_branch_with_slash_uses_local_checkout(qtbot):
     commands.checkout.execute.assert_called_once_with("feature/android-pr-quality-checks")
     commands.checkout_remote_branch.execute.assert_not_called()
     commands.reset_branch_to_ref.execute.assert_not_called()
+
+
+def test_checkout_scrolls_graph_to_head(qtbot):
+    win = _make_window(qtbot)
+    queries, commands = _wire_buses(win)
+    queries.get_head_oid.execute.return_value = "deadbeef"
+    win._graph = MagicMock()
+    with patch.object(win, "_reload"):
+        win._on_checkout_branch("feature")
+    commands.checkout.execute.assert_called_once_with("feature")
+    win._graph.scroll_to_oid.assert_called_once_with("deadbeef", select=True)

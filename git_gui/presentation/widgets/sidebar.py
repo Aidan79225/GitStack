@@ -117,7 +117,7 @@ class _LoadSignals(QObject):
 
 
 class SidebarWidget(QWidget):
-    branch_checkout_requested = Signal(str)  # branch name
+    checkout_branch_requested = Signal(str)  # local or remote branch name
     branch_merge_requested = Signal(str)
     branch_rebase_requested = Signal(str)
     branch_delete_requested = Signal(str)
@@ -304,9 +304,8 @@ class SidebarWidget(QWidget):
     def _on_double_click(self, index) -> None:
         kind = index.data(Qt.UserRole + 1)
         value = index.data(Qt.UserRole)
-        if kind == "branch":
-            self._commands.checkout.execute(value)
-            self.branch_checkout_requested.emit(value)
+        if kind in ("branch", "remote_branch") and value:
+            self.checkout_branch_requested.emit(value)
 
     def _show_context_menu(self, pos) -> None:
         index = self._tree.indexAt(pos)
@@ -317,10 +316,7 @@ class SidebarWidget(QWidget):
         menu = QMenu(self)
         if kind == "branch":
             menu.addAction("Checkout").triggered.connect(
-                lambda: (
-                    self._commands.checkout.execute(value),
-                    self.branch_checkout_requested.emit(value),
-                )
+                lambda: self.checkout_branch_requested.emit(value)
             )
             menu.addAction("Merge into current").triggered.connect(
                 lambda: self.branch_merge_requested.emit(value)
@@ -336,6 +332,9 @@ class SidebarWidget(QWidget):
             )
         elif kind == "remote_branch":
             remote, branch = value.split("/", 1)
+            menu.addAction("Checkout").triggered.connect(
+                lambda: self.checkout_branch_requested.emit(value)
+            )
             menu.addAction("Fetch").triggered.connect(lambda: self.fetch_requested.emit(remote))
             menu.addSeparator()
             menu.addAction("Delete").triggered.connect(
