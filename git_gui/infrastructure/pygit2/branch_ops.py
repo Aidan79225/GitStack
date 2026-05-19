@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 
 import pygit2
@@ -14,6 +15,7 @@ class BranchOps:
     Mixin — not instantiable on its own. Relies on `self._repo` set up
     by the composite class.
     """
+
     _repo: pygit2.Repository  # provided by the composite
 
     # ── METHODS COPIED VERBATIM from Pygit2Repository ─────────────────
@@ -29,20 +31,24 @@ class BranchOps:
 
         for name in self._repo.branches.local:
             ref = self._repo.branches.local[name]
-            branches.append(Branch(
-                name=name,
-                is_remote=False,
-                is_head=(ref.name == head_ref_name),
-                target_oid=str(ref.resolve().target),
-            ))
+            branches.append(
+                Branch(
+                    name=name,
+                    is_remote=False,
+                    is_head=(ref.name == head_ref_name),
+                    target_oid=str(ref.resolve().target),
+                )
+            )
         for name in self._repo.branches.remote:
             ref = self._repo.branches.remote[name]
-            branches.append(Branch(
-                name=name,
-                is_remote=True,
-                is_head=False,
-                target_oid=str(ref.target),
-            ))
+            branches.append(
+                Branch(
+                    name=name,
+                    is_remote=True,
+                    is_head=False,
+                    target_oid=str(ref.target),
+                )
+            )
         return branches
 
     def list_local_branches_with_upstream(self) -> list[LocalBranchInfo]:
@@ -57,15 +63,17 @@ class BranchOps:
             commit = br.peel(pygit2.Commit)
             sha = str(commit.id)[:10]
             msg = commit.message.strip().split("\n", 1)[0]
-            result.append(LocalBranchInfo(
-                name=name,
-                upstream=upstream,
-                last_commit_sha=sha,
-                last_commit_message=msg,
-            ))
+            result.append(
+                LocalBranchInfo(
+                    name=name,
+                    upstream=upstream,
+                    last_commit_sha=sha,
+                    last_commit_message=msg,
+                )
+            )
         return result
 
-    def create_branch(self, name: str, from_oid: str) -> "Branch":
+    def create_branch(self, name: str, from_oid: str) -> Branch:
         commit = self._repo.get(from_oid)
         self._repo.create_branch(name, commit, False)
         return Branch(name=name, is_remote=False, is_head=False, target_oid=from_oid)

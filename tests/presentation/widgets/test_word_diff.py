@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import pytest
 
 from git_gui.presentation.widgets.word_diff import WordSpan, pair_diff
@@ -9,7 +10,7 @@ def _kinds(spans):
 
 
 def _changed_text(line: str, spans):
-    return [line[s.start:s.end] for s in spans if s.kind == "changed"]
+    return [line[s.start : s.end] for s in spans if s.kind == "changed"]
 
 
 def test_identical_lines_have_no_changed_spans():
@@ -55,16 +56,18 @@ def test_adjacent_same_kind_spans_are_merged():
     # which yields a single span covering "bar baz" (old) and "BAR BAZ" (new).
     # Our merge step should not split them.
     old, new = pair_diff("foo bar baz", "foo BAR BAZ")
+    from itertools import pairwise
+
     new_changed = [s for s in new if s.kind == "changed"]
     # All "changed" spans should be contiguous (no gap between adjacent same-kind spans).
-    for a, b in zip(new_changed, new_changed[1:]):
+    for a, b in pairwise(new_changed):
         assert a.end < b.start  # gap exists (a "same" span between them)
 
 
 def test_unicode_identifiers_unchanged_stay_same():
     old, new = pair_diff("αβγ = 1", "αβγ = 2")
     # The αβγ token should appear as "same" on both sides.
-    assert any(s.kind == "same" and "αβγ" in "αβγ = 1"[s.start:s.end] for s in old)
+    assert any(s.kind == "same" and "αβγ" in "αβγ = 1"[s.start : s.end] for s in old)
 
 
 def test_spans_cover_input_with_no_overlap():

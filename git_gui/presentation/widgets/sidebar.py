@@ -1,14 +1,22 @@
 # git_gui/presentation/widgets/sidebar.py
 from __future__ import annotations
+
 import threading
+from datetime import UTC
+
 from PySide6.QtCore import QObject, QSize, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QIcon, QPainter, QStandardItem, QStandardItemModel
+from PySide6.QtGui import QColor, QIcon, QPainter, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
-    QMenu, QStyle, QStyleOptionViewItem, QTreeView, QVBoxLayout, QWidget,
+    QMenu,
+    QStyleOptionViewItem,
+    QTreeView,
+    QVBoxLayout,
+    QWidget,
 )
+
 from git_gui.domain.entities import Branch, Stash, Tag
 from git_gui.presentation.bus import CommandBus, QueryBus
-from git_gui.presentation.theme import get_theme_manager, connect_widget
+from git_gui.presentation.theme import connect_widget, get_theme_manager
 from git_gui.resources import get_resource_path
 
 
@@ -33,8 +41,10 @@ _ROW_HEIGHT = 28
 _IS_HEAD_ROLE = Qt.UserRole + 2
 _TARGET_OID_ROLE = Qt.UserRole + 3
 
+
 def _get_cloud_icon() -> QIcon:
     from PySide6.QtGui import QPainter, QPixmap
+
     path = str(get_resource_path("arts") / "ic_cloud_done.svg")
     src = QIcon(path).pixmap(16, 16)
     if src.isNull():
@@ -57,10 +67,12 @@ class _SidebarTree(QTreeView):
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
         from PySide6.QtCore import QPersistentModelIndex
+
         self._hover_idx = QPersistentModelIndex()
 
     def mouseMoveEvent(self, event) -> None:
         from PySide6.QtCore import QPersistentModelIndex
+
         idx = self.indexAt(event.position().toPoint())
         new_idx = QPersistentModelIndex(idx) if idx.isValid() else QPersistentModelIndex()
         if new_idx != self._hover_idx:
@@ -70,6 +82,7 @@ class _SidebarTree(QTreeView):
 
     def leaveEvent(self, event) -> None:
         from PySide6.QtCore import QPersistentModelIndex
+
         if self._hover_idx.isValid():
             self._hover_idx = QPersistentModelIndex()
             self.viewport().update()
@@ -104,24 +117,30 @@ class _LoadSignals(QObject):
 
 
 class SidebarWidget(QWidget):
-    branch_checkout_requested = Signal(str)   # branch name
+    branch_checkout_requested = Signal(str)  # branch name
     branch_merge_requested = Signal(str)
     branch_rebase_requested = Signal(str)
     branch_delete_requested = Signal(str)
     branch_push_requested = Signal(str)
-    fetch_requested = Signal(str)             # remote name
-    branch_clicked = Signal(str)              # target oid
+    fetch_requested = Signal(str)  # remote name
+    branch_clicked = Signal(str)  # target oid
     stash_pop_requested = Signal(int)
     stash_apply_requested = Signal(int)
     stash_drop_requested = Signal(int)
-    stash_clicked = Signal(str)              # stash oid
-    tag_clicked = Signal(str)               # target oid
-    tag_delete_requested = Signal(str)       # tag name
-    tag_push_requested = Signal(str)         # tag name
+    stash_clicked = Signal(str)  # stash oid
+    tag_clicked = Signal(str)  # target oid
+    tag_delete_requested = Signal(str)  # tag name
+    tag_push_requested = Signal(str)  # tag name
     remote_branch_delete_requested = Signal(str, str)  # (remote, branch)
 
-    def __init__(self, queries: QueryBus, commands: CommandBus,
-                 remote_tag_cache=None, repo_path: str | None = None, parent=None) -> None:
+    def __init__(
+        self,
+        queries: QueryBus,
+        commands: CommandBus,
+        remote_tag_cache=None,
+        repo_path: str | None = None,
+        parent=None,
+    ) -> None:
         super().__init__(parent)
         self._queries = queries
         self._commands = commands
@@ -184,8 +203,13 @@ class SidebarWidget(QWidget):
 
         threading.Thread(target=_worker, daemon=True).start()
 
-    def _on_load_done(self, branches: list[Branch], stashes: list[Stash],
-                      tags: list[Tag], remote_tag_names: set[str]) -> None:
+    def _on_load_done(
+        self,
+        branches: list[Branch],
+        stashes: list[Stash],
+        tags: list[Tag],
+        remote_tag_names: set[str],
+    ) -> None:
         if self._queries is None:
             return
 
@@ -212,21 +236,22 @@ class SidebarWidget(QWidget):
         self._model.appendRow(local_header)
 
         # Remote branches
-        self._add_section("REMOTE BRANCHES", [
-            (b.name, b.name, "remote_branch", b.target_oid) for b in remote
-        ])
+        self._add_section(
+            "REMOTE BRANCHES", [(b.name, b.name, "remote_branch", b.target_oid) for b in remote]
+        )
 
         # Stashes — most recent first. Stashes without a timestamp fall to the end.
-        from datetime import datetime, timezone
-        _stash_epoch = datetime.fromtimestamp(0, tz=timezone.utc)
+        from datetime import datetime
+
+        _stash_epoch = datetime.fromtimestamp(0, tz=UTC)
         stashes_sorted = sorted(
             stashes,
             key=lambda s: s.timestamp or _stash_epoch,
             reverse=True,
         )
-        self._add_section("STASHES", [
-            (s.message, str(s.index), "stash", s.oid) for s in stashes_sorted
-        ])
+        self._add_section(
+            "STASHES", [(s.message, str(s.index), "stash", s.oid) for s in stashes_sorted]
+        )
 
         # Tags — sorted by name descending. Cloud icon for remote tags.
         tags_sorted = sorted(tags, key=lambda t: _tag_sort_key(t.name), reverse=True)
@@ -292,38 +317,40 @@ class SidebarWidget(QWidget):
         menu = QMenu(self)
         if kind == "branch":
             menu.addAction("Checkout").triggered.connect(
-                lambda: (self._commands.checkout.execute(value),
-                         self.branch_checkout_requested.emit(value)))
+                lambda: (
+                    self._commands.checkout.execute(value),
+                    self.branch_checkout_requested.emit(value),
+                )
+            )
             menu.addAction("Merge into current").triggered.connect(
-                lambda: self.branch_merge_requested.emit(value))
+                lambda: self.branch_merge_requested.emit(value)
+            )
             menu.addAction("Rebase onto").triggered.connect(
-                lambda: self.branch_rebase_requested.emit(value))
+                lambda: self.branch_rebase_requested.emit(value)
+            )
             menu.addSeparator()
-            menu.addAction("Push").triggered.connect(
-                lambda: self.branch_push_requested.emit(value))
+            menu.addAction("Push").triggered.connect(lambda: self.branch_push_requested.emit(value))
             menu.addSeparator()
             menu.addAction("Delete").triggered.connect(
-                lambda: self.branch_delete_requested.emit(value))
+                lambda: self.branch_delete_requested.emit(value)
+            )
         elif kind == "remote_branch":
             remote, branch = value.split("/", 1)
-            menu.addAction("Fetch").triggered.connect(
-                lambda: self.fetch_requested.emit(remote))
+            menu.addAction("Fetch").triggered.connect(lambda: self.fetch_requested.emit(remote))
             menu.addSeparator()
             menu.addAction("Delete").triggered.connect(
-                lambda: self.remote_branch_delete_requested.emit(remote, branch))
+                lambda: self.remote_branch_delete_requested.emit(remote, branch)
+            )
         elif kind == "stash":
             idx = int(value)
-            menu.addAction("Pop").triggered.connect(
-                lambda: self.stash_pop_requested.emit(idx))
-            menu.addAction("Apply").triggered.connect(
-                lambda: self.stash_apply_requested.emit(idx))
+            menu.addAction("Pop").triggered.connect(lambda: self.stash_pop_requested.emit(idx))
+            menu.addAction("Apply").triggered.connect(lambda: self.stash_apply_requested.emit(idx))
             menu.addSeparator()
-            menu.addAction("Drop").triggered.connect(
-                lambda: self.stash_drop_requested.emit(idx))
+            menu.addAction("Drop").triggered.connect(lambda: self.stash_drop_requested.emit(idx))
         elif kind == "tag":
-            menu.addAction("Push").triggered.connect(
-                lambda: self.tag_push_requested.emit(value))
+            menu.addAction("Push").triggered.connect(lambda: self.tag_push_requested.emit(value))
             menu.addSeparator()
             menu.addAction("Delete").triggered.connect(
-                lambda: self.tag_delete_requested.emit(value))
+                lambda: self.tag_delete_requested.emit(value)
+            )
         menu.exec(self._tree.viewport().mapToGlobal(pos))

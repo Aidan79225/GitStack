@@ -1,4 +1,5 @@
 """Install a `View → Appearance...` menu item that opens the Theme dialog."""
+
 from __future__ import annotations
 
 from PySide6.QtGui import QAction

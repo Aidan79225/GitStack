@@ -19,3 +19,6 @@ dist/
 .claude/settings.local.json
 .rtk/filters.toml
 .claude/scheduled_tasks.lock
+
+# Build-time-generated Sentry DSN + version (release.yml bakes this in)
+git_gui/_build_config.py

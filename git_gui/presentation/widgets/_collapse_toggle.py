@@ -1,4 +1,5 @@
 """Reusable chevron toggle button used by collapsible diff sections."""
+
 from __future__ import annotations
 
 from PySide6.QtCore import QSize, Qt, Signal

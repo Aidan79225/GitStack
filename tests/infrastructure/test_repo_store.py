@@ -1,6 +1,8 @@
 import json
-import pytest
 from pathlib import Path
+
+import pytest
+
 from git_gui.infrastructure.repo_store import JsonRepoStore
 
 
@@ -23,11 +25,15 @@ class TestJsonRepoStoreLoad:
 
     def test_load_existing_file(self, store, store_path):
         store_path.parent.mkdir(parents=True, exist_ok=True)
-        store_path.write_text(json.dumps({
-            "open": ["/repo/a", "/repo/b"],
-            "recent": ["/repo/c"],
-            "active": "/repo/a",
-        }))
+        store_path.write_text(
+            json.dumps(
+                {
+                    "open": ["/repo/a", "/repo/b"],
+                    "recent": ["/repo/c"],
+                    "active": "/repo/a",
+                }
+            )
+        )
         store.load()
         assert store.get_open_repos() == ["/repo/a", "/repo/b"]
         assert store.get_recent_repos() == ["/repo/c"]
@@ -54,9 +60,15 @@ class TestJsonRepoStoreAddOpen:
 
     def test_add_open_removes_from_recent(self, store, store_path):
         store_path.parent.mkdir(parents=True, exist_ok=True)
-        store_path.write_text(json.dumps({
-            "open": [], "recent": ["/repo/a", "/repo/b"], "active": None,
-        }))
+        store_path.write_text(
+            json.dumps(
+                {
+                    "open": [],
+                    "recent": ["/repo/a", "/repo/b"],
+                    "active": None,
+                }
+            )
+        )
         store.load()
         store.add_open("/repo/a")
         assert "/repo/a" not in store.get_recent_repos()
@@ -96,11 +108,15 @@ class TestJsonRepoStoreRecentLimit:
 
     def test_recent_excludes_open_repos(self, store, store_path):
         store_path.parent.mkdir(parents=True, exist_ok=True)
-        store_path.write_text(json.dumps({
-            "open": ["/repo/a"],
-            "recent": ["/repo/a", "/repo/b"],
-            "active": "/repo/a",
-        }))
+        store_path.write_text(
+            json.dumps(
+                {
+                    "open": ["/repo/a"],
+                    "recent": ["/repo/a", "/repo/b"],
+                    "active": "/repo/a",
+                }
+            )
+        )
         store.load()
         assert "/repo/a" not in store.get_recent_repos()
         assert store.get_recent_repos() == ["/repo/b"]
@@ -162,8 +178,14 @@ class TestJsonRepoStoreSettings:
 
     def test_old_file_without_settings_key_loads_clean(self, store, store_path):
         store_path.parent.mkdir(parents=True, exist_ok=True)
-        store_path.write_text(json.dumps({
-            "open": [], "recent": [], "active": None,
-        }))
+        store_path.write_text(
+            json.dumps(
+                {
+                    "open": [],
+                    "recent": [],
+                    "active": None,
+                }
+            )
+        )
         store.load()
         assert store.get_repo_setting("/repo/a", "first_parent", False) is False

@@ -1,14 +1,17 @@
 # git_gui/presentation/widgets/ref_badge_delegate.py
 from __future__ import annotations
-from PySide6.QtCore import Qt, QRect
+
+from PySide6.QtCore import QRect, Qt
 from PySide6.QtGui import QBrush, QColor, QPainter
 from PySide6.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem
+
 from git_gui.presentation.theme import get_theme_manager
 
-BADGE_RADIUS = 4   # rounded corner radius
-BADGE_H_PAD = 4    # horizontal padding inside badge
-BADGE_V_PAD = 2    # vertical padding inside badge
-BADGE_GAP = 4      # gap between consecutive badges, and after last badge
+BADGE_RADIUS = 4  # rounded corner radius
+BADGE_H_PAD = 4  # horizontal padding inside badge
+BADGE_V_PAD = 2  # vertical padding inside badge
+BADGE_GAP = 4  # gap between consecutive badges, and after last badge
+
 
 def _color_head() -> QColor:
     return get_theme_manager().current.colors.as_qcolor("branch_head_bg")

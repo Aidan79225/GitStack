@@ -1,8 +1,9 @@
 from __future__ import annotations
-import pytest
 
 from git_gui.presentation.widgets.syntax_highlighter import (
-    SyntaxToken, tokenize, _lexer_for,
+    SyntaxToken,
+    _lexer_for,
+    tokenize,
 )
 
 
@@ -59,7 +60,7 @@ def test_token_offsets_are_valid():
     tokens = tokenize(text, "x.py")
     for t in tokens:
         assert 0 <= t.start < t.end <= len(text)
-        assert text[t.start:t.end]  # non-empty
+        assert text[t.start : t.end]  # non-empty
 
 
 def test_pygments_exception_returns_empty(monkeypatch):
@@ -71,9 +72,11 @@ def test_pygments_exception_returns_empty(monkeypatch):
             raise RuntimeError("boom")
 
     monkeypatch.setattr(sh, "_lexer_for", lambda _: _Boom())
+
     # Also patch lex to use the lexer's get_tokens path — easiest to monkeypatch lex itself:
     def _bad_lex(_text, _lexer):
         raise RuntimeError("boom")
+
     monkeypatch.setattr(sh, "lex", _bad_lex)
 
     assert sh.tokenize("def foo():\n", "x.py") == []
@@ -88,4 +91,4 @@ def test_lexer_is_cached():
 
 def text_at(_tokens, src: str, t: SyntaxToken) -> str:
     """Helper: return src[t.start:t.end]."""
-    return src[t.start:t.end]
+    return src[t.start : t.end]

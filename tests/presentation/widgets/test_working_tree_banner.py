@@ -1,5 +1,7 @@
 """Tests for the conflict banner in WorkingTreeWidget."""
+
 from __future__ import annotations
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -18,6 +20,7 @@ def _make_widget(qtbot) -> WorkingTreeWidget:
     w = WorkingTreeWidget.__new__(WorkingTreeWidget)
     QWidget.__init__(w)
     from PySide6.QtWidgets import QHBoxLayout, QLabel, QPlainTextEdit, QPushButton
+
     w._conflict_banner = QWidget()
     banner_layout = QHBoxLayout(w._conflict_banner)
     w._banner_label = QLabel("")
@@ -150,6 +153,7 @@ def test_commit_emits_revert_continue(qtbot):
 # Identity prompt during merge/rebase/cherry-pick/revert "continue".
 # --------------------------------------------------------------------
 
+
 @pytest.mark.parametrize(
     "state, signal_name",
     [
@@ -171,9 +175,12 @@ def test_continue_states_prompt_for_missing_identity(qtbot, monkeypatch, state, 
     class _FakeDialog:
         def __init__(self, *_a, **_kw):
             dialog_opened.append(True)
+
         def exec(self):
             from PySide6.QtWidgets import QDialog
+
             return QDialog.Accepted
+
         def values(self):
             return ("Bob", "bob@example.com", False)
 
@@ -200,7 +207,9 @@ def test_continue_states_prompt_for_missing_identity(qtbot, monkeypatch, state, 
         ("REVERTING", "revert_continue_requested"),
     ],
 )
-def test_continue_states_skip_when_identity_dialog_cancelled(qtbot, monkeypatch, state, signal_name):
+def test_continue_states_skip_when_identity_dialog_cancelled(
+    qtbot, monkeypatch, state, signal_name
+):
     """If the user cancels the identity dialog, the continue signal must
     NOT be emitted — no commit attempt."""
     w = _make_widget(qtbot)
@@ -208,10 +217,14 @@ def test_continue_states_skip_when_identity_dialog_cancelled(qtbot, monkeypatch,
     w.update_conflict_banner(state)
 
     class _CancelDialog:
-        def __init__(self, *_a, **_kw): pass
+        def __init__(self, *_a, **_kw):
+            pass
+
         def exec(self):
             from PySide6.QtWidgets import QDialog
+
             return QDialog.Rejected
+
         def values(self):
             return ("", "", False)
 

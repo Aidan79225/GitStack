@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import os
 import subprocess
 
@@ -13,6 +14,7 @@ class StageOps:
     Mixin — not instantiable on its own. Relies on `self._repo` set up
     by the composite class.
     """
+
     _repo: pygit2.Repository  # provided by the composite
 
     def stage(self, paths: list[str]) -> None:
@@ -38,9 +40,7 @@ class StageOps:
             for path in paths:
                 if path in head_commit.tree:
                     entry = head_commit.tree[path]
-                    self._repo.index.add(
-                        pygit2.IndexEntry(path, entry.id, entry.filemode)
-                    )
+                    self._repo.index.add(pygit2.IndexEntry(path, entry.id, entry.filemode))
                 else:
                     self._repo.index.remove(path)
             self._repo.index.write()
@@ -50,9 +50,12 @@ class StageOps:
         if patch:
             subprocess.run(
                 ["git", "apply", "--cached"],
-                input=patch.encode("utf-8"), cwd=self._repo.workdir,
+                input=patch.encode("utf-8"),
+                cwd=self._repo.workdir,
                 env=self._git_env,
-                check=True, capture_output=True, **subprocess_kwargs(),
+                check=True,
+                capture_output=True,
+                **subprocess_kwargs(),
             )
             self._repo.index.read()
 
@@ -61,9 +64,12 @@ class StageOps:
         if patch:
             subprocess.run(
                 ["git", "apply", "--cached", "--reverse"],
-                input=patch.encode("utf-8"), cwd=self._repo.workdir,
+                input=patch.encode("utf-8"),
+                cwd=self._repo.workdir,
                 env=self._git_env,
-                check=True, capture_output=True, **subprocess_kwargs(),
+                check=True,
+                capture_output=True,
+                **subprocess_kwargs(),
             )
             self._repo.index.read()
 
@@ -81,9 +87,7 @@ class StageOps:
 
         if head_has_blob:
             entry = head_commit.tree[path]
-            self._repo.index.add(
-                pygit2.IndexEntry(path, entry.id, entry.filemode)
-            )
+            self._repo.index.add(pygit2.IndexEntry(path, entry.id, entry.filemode))
             self._repo.index.write()
             self._repo.index.read()
             blob = self._repo.get(entry.id)
@@ -105,9 +109,12 @@ class StageOps:
         if patch:
             subprocess.run(
                 ["git", "apply", "--reverse"],
-                input=patch.encode("utf-8"), cwd=self._repo.workdir,
+                input=patch.encode("utf-8"),
+                cwd=self._repo.workdir,
                 env=self._git_env,
-                check=True, capture_output=True, **subprocess_kwargs(),
+                check=True,
+                capture_output=True,
+                **subprocess_kwargs(),
             )
             self._repo.index.read()
 

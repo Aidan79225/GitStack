@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 import os
 import subprocess
@@ -22,6 +23,7 @@ class SubmoduleOps:
     Mixin — not instantiable on its own. Relies on `self._repo` set up
     by the composite class.
     """
+
     _repo: pygit2.Repository  # provided by the composite
 
     # ── METHODS COPIED VERBATIM from Pygit2Repository ─────────────────
@@ -63,6 +65,7 @@ class SubmoduleOps:
 
     def _submodule_cli(self):
         from git_gui.infrastructure.submodule_cli import SubmoduleCli
+
         return SubmoduleCli(self._repo.workdir)
 
     def list_submodules(self) -> list[Submodule]:
@@ -76,7 +79,6 @@ class SubmoduleOps:
             return result
 
         # Parse URLs from .gitmodules config file
-        import os
         url_map: dict[str, str] = {}
         gitmodules_path = os.path.join(self._repo.workdir, ".gitmodules")
         if os.path.exists(gitmodules_path):
@@ -95,9 +97,12 @@ class SubmoduleOps:
         sha_map: dict[str, str] = {}
         try:
             ls_result = subprocess.run(
-                ["git", "ls-files", "-s", "--"] + sm_paths,
-                capture_output=True, text=True,
-                cwd=self._repo.workdir, env=self._git_env, **subprocess_kwargs(),
+                ["git", "ls-files", "-s", "--", *sm_paths],
+                capture_output=True,
+                text=True,
+                cwd=self._repo.workdir,
+                env=self._git_env,
+                **subprocess_kwargs(),
             )
             for line in ls_result.stdout.splitlines():
                 # Format: "160000 <sha> <stage>\t<path>"

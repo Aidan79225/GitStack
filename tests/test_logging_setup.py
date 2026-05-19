@@ -1,5 +1,7 @@
 """Tests for the logging_setup module."""
+
 from __future__ import annotations
+
 import faulthandler
 import logging
 import logging.handlers
@@ -81,8 +83,7 @@ def test_setup_logging_is_idempotent(tmp_path, monkeypatch):
 
     root = logging.getLogger()
     rotating_handlers = [
-        h for h in root.handlers
-        if isinstance(h, logging.handlers.RotatingFileHandler)
+        h for h in root.handlers if isinstance(h, logging.handlers.RotatingFileHandler)
     ]
     assert len(rotating_handlers) == 1
 

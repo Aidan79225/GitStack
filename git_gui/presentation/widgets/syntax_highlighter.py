@@ -1,10 +1,11 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 from functools import lru_cache
 
 from pygments import lex
 from pygments.lexer import Lexer
-from pygments.lexers import get_lexer_for_filename, TextLexer
+from pygments.lexers import TextLexer, get_lexer_for_filename
 from pygments.token import Token as PygmentsToken
 from pygments.util import ClassNotFound
 
@@ -12,20 +13,21 @@ from pygments.util import ClassNotFound
 @dataclass(frozen=True)
 class SyntaxToken:
     """A syntax-highlighted span: char offsets into the input text + a role name."""
+
     start: int
     end: int
     kind: str  # one of the MD3 syntax_* role names
 
 
 _ROLE_MAP = {
-    PygmentsToken.Keyword:        "syntax_keyword",
-    PygmentsToken.Name.Builtin:   "syntax_keyword",
-    PygmentsToken.Name.Function:  "syntax_function",
-    PygmentsToken.Name.Class:     "syntax_class",
-    PygmentsToken.String:         "syntax_string",
-    PygmentsToken.Number:         "syntax_number",
-    PygmentsToken.Comment:        "syntax_comment",
-    PygmentsToken.Operator:       "syntax_operator",
+    PygmentsToken.Keyword: "syntax_keyword",
+    PygmentsToken.Name.Builtin: "syntax_keyword",
+    PygmentsToken.Name.Function: "syntax_function",
+    PygmentsToken.Name.Class: "syntax_class",
+    PygmentsToken.String: "syntax_string",
+    PygmentsToken.Number: "syntax_number",
+    PygmentsToken.Comment: "syntax_comment",
+    PygmentsToken.Operator: "syntax_operator",
     PygmentsToken.Name.Decorator: "syntax_decorator",
 }
 

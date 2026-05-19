@@ -1,6 +1,7 @@
-import pygit2
-import pytest
 from pathlib import Path
+
+import pytest
+
 from git_gui.infrastructure.pygit2 import Pygit2Repository
 
 
@@ -15,7 +16,7 @@ def multi_hunk_repo(repo_path) -> tuple[Pygit2Repository, Path]:
     impl.commit("add multi.txt")
 
     # Modify two separate regions to create two hunks
-    lines[1] = "CHANGED line 2\n"    # near top
+    lines[1] = "CHANGED line 2\n"  # near top
     lines[17] = "CHANGED line 18\n"  # near bottom
     (repo_path / "multi.txt").write_text("".join(lines))
     return impl, repo_path

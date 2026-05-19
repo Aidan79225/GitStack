@@ -1,8 +1,14 @@
 from __future__ import annotations
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QDialog, QDialogButtonBox, QLabel, QPlainTextEdit, QRadioButton,
-    QVBoxLayout, QWidget,
+    QDialog,
+    QDialogButtonBox,
+    QLabel,
+    QPlainTextEdit,
+    QRadioButton,
+    QVBoxLayout,
+    QWidget,
 )
 
 from git_gui.domain.entities import FileStatus, ResetMode
@@ -27,8 +33,7 @@ class ResetDialog(QDialog):
         layout = QVBoxLayout(self)
 
         header = QLabel(
-            f"Reset <b>{branch_name}</b> to <code>{short_sha}</code> "
-            f"&quot;{commit_subject}&quot;"
+            f"Reset <b>{branch_name}</b> to <code>{short_sha}</code> &quot;{commit_subject}&quot;"
         )
         header.setTextFormat(Qt.TextFormat.RichText)
         layout.addWidget(header)

@@ -5,12 +5,15 @@ Watches .git/ for external git-state writes and listens to application
 focus changes for working-tree edit polling. Both sources funnel through
 a 200 ms single-shot debouncer that calls the injected on_reload callback.
 """
+
 from __future__ import annotations
+
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from time import monotonic
-from typing import Callable
-from PySide6.QtCore import QFileSystemWatcher, QObject, QTimer, Qt
+
+from PySide6.QtCore import QFileSystemWatcher, QObject, Qt, QTimer
 from PySide6.QtGui import QGuiApplication
 
 logger = logging.getLogger(__name__)

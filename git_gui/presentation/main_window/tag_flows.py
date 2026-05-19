@@ -1,9 +1,11 @@
 # git_gui/presentation/main_window/tag_flows.py
 from __future__ import annotations
-import logging
-from PySide6.QtWidgets import QDialog, QMessageBox
-from git_gui.presentation.widgets.create_tag_dialog import CreateTagDialog
 
+import logging
+
+from PySide6.QtWidgets import QDialog, QMessageBox
+
+from git_gui.presentation.widgets.create_tag_dialog import CreateTagDialog
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +48,8 @@ class TagFlowsMixin:
             except Exception as e:
                 logger.warning(
                     "Remote tag cache load failed for %s: %s",
-                    self._repo_path, e,
+                    self._repo_path,
+                    e,
                 )
 
         if remotes_with_tag:
@@ -54,8 +57,7 @@ class TagFlowsMixin:
             box = QMessageBox(self)
             box.setWindowTitle("Delete Tag")
             box.setText(
-                f"Tag '{name}' exists on {remote_list}.\n\n"
-                f"Delete locally and from {remote_list}?"
+                f"Tag '{name}' exists on {remote_list}.\n\nDelete locally and from {remote_list}?"
             )
             both_btn = box.addButton("Local + remote", QMessageBox.AcceptRole)
             local_btn = box.addButton("Local only", QMessageBox.DestructiveRole)
@@ -63,9 +65,7 @@ class TagFlowsMixin:
             # The global QSS sets `QDialog QPushButton { min-width: 72px; }`
             # which clips longer labels. Override at the dialog level with the
             # same selector specificity.
-            box.setStyleSheet(
-                "QDialog QPushButton { min-width: 160px; padding: 6px 20px; }"
-            )
+            box.setStyleSheet("QDialog QPushButton { min-width: 160px; padding: 6px 20px; }")
             box.exec()
             clicked = box.clickedButton()
             if clicked is both_btn:
@@ -100,6 +100,7 @@ class TagFlowsMixin:
             return
 
         for remote in remotes:
+
             def _fn(r=remote):
                 self._commands.delete_remote_tag.execute(r, name)
                 # Update cache: remove the tag from this remote's list.
@@ -112,7 +113,11 @@ class TagFlowsMixin:
                     except Exception as e:
                         logger.warning(
                             "Remote tag cache update failed for %s (remote=%s, tag=%s): %s",
-                            self._repo_path, r, name, e,
+                            self._repo_path,
+                            r,
+                            name,
+                            e,
                         )
+
             self._run_remote_op(f"Delete tag {name} from {remote}", _fn)
         self._reload()

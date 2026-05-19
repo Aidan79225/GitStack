@@ -1,4 +1,5 @@
 """Tests for IdentityDialog (inline prompt for missing git identity)."""
+
 from __future__ import annotations
 
 from PySide6.QtWidgets import QApplication, QDialogButtonBox

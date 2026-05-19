@@ -3,20 +3,21 @@
 Covers public-API regressions: single-click routing by item kind,
 double-click branch checkout, context-menu action emissions, and
 bus-detach model clearing. No rendering or async-reload tests here."""
+
 from __future__ import annotations
+
 from unittest.mock import MagicMock, patch
 
 import pytest
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QStandardItem
 from PySide6.QtWidgets import QMenu
 
 from git_gui.presentation.widgets.sidebar import (
-    SidebarWidget,
     _IS_HEAD_ROLE,
     _TARGET_OID_ROLE,
+    SidebarWidget,
 )
-
 
 # -- Helpers ---------------------------------------------------------------
 
@@ -59,7 +60,9 @@ def _tag_item(name: str, oid: str) -> QStandardItem:
     return child
 
 
-def _add_section(sidebar: SidebarWidget, title: str, children: list[QStandardItem]) -> QStandardItem:
+def _add_section(
+    sidebar: SidebarWidget, title: str, children: list[QStandardItem]
+) -> QStandardItem:
     header = QStandardItem(title)
     header.setEditable(False)
     header.setData("header", Qt.UserRole + 1)
@@ -97,7 +100,7 @@ def _capture_menu_actions(sidebar: SidebarWidget, item: QStandardItem) -> dict:
             super().__init__(*args, **kwargs)
             captured.append(self)
 
-        def exec(self, *args, **kwargs):  # noqa: A003 — shadow Qt API intentionally
+        def exec(self, *args, **kwargs):
             return None
 
         def exec_(self, *args, **kwargs):

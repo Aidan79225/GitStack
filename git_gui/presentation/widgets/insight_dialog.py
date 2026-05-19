@@ -1,15 +1,26 @@
 from __future__ import annotations
+
 import logging
 import threading
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+
 from PySide6.QtCore import QDate, QObject, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter
 from PySide6.QtWidgets import (
-    QButtonGroup, QDateEdit, QDialog, QFrame, QHBoxLayout, QLabel,
-    QPushButton, QScrollArea, QVBoxLayout, QWidget,
+    QButtonGroup,
+    QDateEdit,
+    QDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
 )
+
 from git_gui.presentation.bus import QueryBus
-from git_gui.presentation.theme import get_theme_manager, connect_widget
+from git_gui.presentation.theme import connect_widget, get_theme_manager
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +85,16 @@ class _SummaryCard(QFrame):
 
 
 class _AuthorRow(QWidget):
-    def __init__(self, rank: int, name: str, commits: int,
-                 added: int, deleted: int, max_total: int, parent=None) -> None:
+    def __init__(
+        self,
+        rank: int,
+        name: str,
+        commits: int,
+        added: int,
+        deleted: int,
+        max_total: int,
+        parent=None,
+    ) -> None:
         super().__init__(parent)
         self._rank = rank
         self._name = name
@@ -107,8 +126,14 @@ class _AuthorRow(QWidget):
         painter.setPen(get_theme_manager().current.colors.as_qcolor("on_surface"))
         # Strip email from "Name <email>"
         display_name = self._name.split("<")[0].strip() if "<" in self._name else self._name
-        painter.drawText(64, 6, rect.width() - 200, name_fm.height(),
-                         Qt.AlignVCenter | Qt.AlignLeft, display_name)
+        painter.drawText(
+            64,
+            6,
+            rect.width() - 200,
+            name_fm.height(),
+            Qt.AlignVCenter | Qt.AlignLeft,
+            display_name,
+        )
 
         # Commit count (right side)
         count_font = QFont()
@@ -116,8 +141,14 @@ class _AuthorRow(QWidget):
         painter.setFont(count_font)
         count_fm = painter.fontMetrics()
         painter.setPen(QColor(_muted()))
-        painter.drawText(rect.width() - 130, 6, 120, count_fm.height(),
-                         Qt.AlignVCenter | Qt.AlignRight, f"{self._commits} commits")
+        painter.drawText(
+            rect.width() - 130,
+            6,
+            120,
+            count_fm.height(),
+            Qt.AlignVCenter | Qt.AlignRight,
+            f"{self._commits} commits",
+        )
 
         # Bar: green for added, red for deleted (anchored at bottom)
         bar_h = 6
@@ -133,11 +164,13 @@ class _AuthorRow(QWidget):
         count_h = count_fm.height()
         count_y = bar_y - count_h - 2  # 2px gap above bar
         painter.setPen(QColor(_green()))
-        painter.drawText(bar_x, count_y, 100, count_h, Qt.AlignVCenter | Qt.AlignLeft,
-                         f"+{self._added}")
+        painter.drawText(
+            bar_x, count_y, 100, count_h, Qt.AlignVCenter | Qt.AlignLeft, f"+{self._added}"
+        )
         painter.setPen(QColor(_red()))
-        painter.drawText(bar_x, count_y, bar_w, count_h, Qt.AlignVCenter | Qt.AlignRight,
-                         f"-{self._deleted}")
+        painter.drawText(
+            bar_x, count_y, bar_w, count_h, Qt.AlignVCenter | Qt.AlignRight, f"-{self._deleted}"
+        )
 
         total = self._added + self._deleted
         if total > 0 and self._max_total > 0:
@@ -180,15 +213,22 @@ class _FileRow(QWidget):
         painter.setPen(get_theme_manager().current.colors.as_qcolor("on_surface"))
         # Elide long paths
         elided = path_fm.elidedText(self._path, Qt.ElideMiddle, rect.width() - 200)
-        painter.drawText(56, 0, rect.width() - 200, rect.height(),
-                         Qt.AlignVCenter | Qt.AlignLeft, elided)
+        painter.drawText(
+            56, 0, rect.width() - 200, rect.height(), Qt.AlignVCenter | Qt.AlignLeft, elided
+        )
 
         count_font = QFont()
         count_font.setPointSize(10)
         painter.setFont(count_font)
         painter.setPen(QColor(_muted()))
-        painter.drawText(rect.width() - 140, 0, 130, rect.height(),
-                         Qt.AlignVCenter | Qt.AlignRight, f"{self._count}×")
+        painter.drawText(
+            rect.width() - 140,
+            0,
+            130,
+            rect.height(),
+            Qt.AlignVCenter | Qt.AlignRight,
+            f"{self._count}×",
+        )
         painter.end()
 
 
@@ -237,7 +277,7 @@ class InsightDialog(QDialog):
         for label in ("This Week", "This Month", "This Year", "All", "Custom"):
             btn = QPushButton(label)
             btn.setCheckable(True)
-            btn.clicked.connect(lambda _checked=False, l=label: self._on_range_changed(l))
+            btn.clicked.connect(lambda _checked=False, lbl=label: self._on_range_changed(lbl))
             self._range_group.addButton(btn)
             self._range_bar.addWidget(btn)
         self._range_bar.addStretch()
@@ -316,7 +356,7 @@ class InsightDialog(QDialog):
                 return
 
     def _compute_range(self, label: str) -> tuple[datetime | None, datetime | None]:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         if label == "This Week":
             start = now - timedelta(days=now.weekday())
             start = start.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -332,8 +372,8 @@ class InsightDialog(QDialog):
         if label == "Custom":
             qs = self._start_date.date()
             qe = self._end_date.date()
-            since = datetime(qs.year(), qs.month(), qs.day(), tzinfo=timezone.utc)
-            until = datetime(qe.year(), qe.month(), qe.day(), 23, 59, 59, tzinfo=timezone.utc)
+            since = datetime(qs.year(), qs.month(), qs.day(), tzinfo=UTC)
+            until = datetime(qe.year(), qe.month(), qe.day(), 23, 59, 59, tzinfo=UTC)
             return (since, until)
         return (None, None)
 
@@ -362,6 +402,7 @@ class InsightDialog(QDialog):
 
         def _worker() -> None:
             import time
+
             author_commits: dict[str, int] = {}
             author_added: dict[str, int] = {}
             author_deleted: dict[str, int] = {}
@@ -401,8 +442,13 @@ class InsightDialog(QDialog):
                 return
 
             signals.done.emit(
-                generation, author_commits, author_added,
-                author_deleted, file_counts, files_changed, total,
+                generation,
+                author_commits,
+                author_added,
+                author_deleted,
+                file_counts,
+                files_changed,
+                total,
             )
 
         threading.Thread(target=_worker, daemon=True).start()
@@ -422,8 +468,12 @@ class InsightDialog(QDialog):
         self._loading_label.setVisible(False)
         self._scroll.setVisible(True)
         self._render_content(
-            author_commits, author_added, author_deleted,
-            file_counts, files_changed, total_commits,
+            author_commits,
+            author_added,
+            author_deleted,
+            file_counts,
+            files_changed,
+            total_commits,
         )
 
     def _on_cancelled(self, generation: int) -> None:
@@ -455,7 +505,14 @@ class InsightDialog(QDialog):
         files_changed: set[str],
         total_commits: int,
     ) -> None:
-        self._last_render = (author_commits, author_added, author_deleted, file_counts, files_changed, total_commits)
+        self._last_render = (
+            author_commits,
+            author_added,
+            author_deleted,
+            file_counts,
+            files_changed,
+            total_commits,
+        )
 
         # Clear existing content
         while self._content_layout.count():
@@ -494,7 +551,9 @@ class InsightDialog(QDialog):
         authors_frame, authors_layout = _make_card_container("Top Authors")
         for i, (author, count) in enumerate(top_authors, start=1):
             row = _AuthorRow(
-                rank=i, name=author, commits=count,
+                rank=i,
+                name=author,
+                commits=count,
                 added=author_added.get(author, 0),
                 deleted=author_deleted.get(author, 0),
                 max_total=max_total,

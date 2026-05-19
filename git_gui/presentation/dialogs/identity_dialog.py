@@ -1,9 +1,16 @@
 """IdentityDialog — inline prompt for missing git user.name / user.email."""
+
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
-    QCheckBox, QDialog, QDialogButtonBox, QFormLayout, QLabel,
-    QLineEdit, QVBoxLayout, QWidget,
+    QCheckBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QLabel,
+    QLineEdit,
+    QVBoxLayout,
+    QWidget,
 )
 
 
@@ -25,10 +32,12 @@ class IdentityDialog(QDialog):
         self.setModal(True)
 
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel(
-            "Your git user.name and user.email aren't configured for this repo.\n"
-            "Set them now to commit:"
-        ))
+        layout.addWidget(
+            QLabel(
+                "Your git user.name and user.email aren't configured for this repo.\n"
+                "Set them now to commit:"
+            )
+        )
 
         form = QFormLayout()
         self._name_edit = QLineEdit(initial_name or "")
@@ -52,8 +61,7 @@ class IdentityDialog(QDialog):
 
     def _update_ok(self) -> None:
         self._ok_btn.setEnabled(
-            bool(self._name_edit.text().strip())
-            and bool(self._email_edit.text().strip())
+            bool(self._name_edit.text().strip()) and bool(self._email_edit.text().strip())
         )
 
     def values(self) -> tuple[str, str, bool]:

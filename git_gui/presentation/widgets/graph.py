@@ -1,22 +1,31 @@
 # git_gui/presentation/widgets/graph.py
 from __future__ import annotations
+
 import threading
 from datetime import datetime
-from git_gui.resources import get_resource_path
+
 from PySide6.QtCore import QItemSelectionModel, QModelIndex, QObject, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QIcon, QKeySequence, QPainter, QPixmap, QShortcut
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
-    QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMenu, QPushButton, QStyle,
-    QStyleOptionViewItem, QTableView, QVBoxLayout, QWidget,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMenu,
+    QPushButton,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
 )
-from git_gui.domain.entities import Branch, Commit, ResetMode, Tag, WORKING_TREE_OID
+
+from git_gui.domain.entities import WORKING_TREE_OID, Branch, Commit, ResetMode, Tag
 from git_gui.domain.ports import IRepoStore
 from git_gui.presentation.bus import CommandBus, QueryBus
-from git_gui.presentation.theme import get_theme_manager, connect_widget
 from git_gui.presentation.models.graph_model import GraphModel
-from git_gui.presentation.widgets.graph_lane_delegate import GraphLaneDelegate, LANE_W
+from git_gui.presentation.theme import connect_widget, get_theme_manager
 from git_gui.presentation.widgets.commit_info_delegate import CommitInfoDelegate
-
+from git_gui.presentation.widgets.graph_lane_delegate import LANE_W, GraphLaneDelegate
+from git_gui.resources import get_resource_path
 
 PAGE_SIZE = 50
 MAX_RELOAD_LIMIT = 2000  # cap doubling retry to avoid unbounded loads
@@ -47,6 +56,7 @@ class _GraphTableView(QTableView):
     def paintEvent(self, event):
         if self._hover_row >= 0:
             from PySide6.QtGui import QPainter
+
             painter = QPainter(self.viewport())
             row_rect = self.visualRect(self.model().index(self._hover_row, 0))
             # Extend to full row width
@@ -98,7 +108,7 @@ def _btn_style() -> str:
 class _SearchBar(QWidget):
     """Inline search bar for filtering commits by message, author, hash, or date."""
 
-    navigate_requested = Signal(int)   # +1 = next, -1 = prev
+    navigate_requested = Signal(int)  # +1 = next, -1 = prev
     closed = Signal()
 
     def __init__(self, parent=None) -> None:
@@ -143,6 +153,7 @@ class _SearchBar(QWidget):
 
     def eventFilter(self, obj, event) -> bool:
         from PySide6.QtCore import QEvent
+
         if obj is self._input and event.type() == QEvent.KeyPress:
             if event.key() == Qt.Key_Escape:
                 self.closed.emit()
@@ -178,20 +189,20 @@ class _SearchBar(QWidget):
 
 class GraphWidget(QWidget):
     commit_selected = Signal(str)  # emits oid (or WORKING_TREE_OID)
-    create_branch_requested = Signal(str)       # oid
-    create_tag_requested = Signal(str)          # oid
-    checkout_commit_requested = Signal(str)      # oid
-    checkout_branch_requested = Signal(str)      # branch name (local or remote)
-    delete_branch_requested = Signal(str)        # local branch name
+    create_branch_requested = Signal(str)  # oid
+    create_tag_requested = Signal(str)  # oid
+    checkout_commit_requested = Signal(str)  # oid
+    checkout_branch_requested = Signal(str)  # branch name (local or remote)
+    delete_branch_requested = Signal(str)  # local branch name
     remote_branch_delete_requested = Signal(str, str)  # (remote, branch)
-    merge_branch_requested = Signal(str)             # branch name (merge into current)
-    merge_commit_requested = Signal(str)             # oid (merge commit into current)
-    rebase_onto_branch_requested = Signal(str)       # branch name (rebase current onto)
-    rebase_onto_commit_requested = Signal(str)       # oid (rebase current onto commit)
-    interactive_rebase_branch_requested = Signal(str)   # branch name
-    interactive_rebase_commit_requested = Signal(str)    # oid
-    cherry_pick_requested = Signal(str)         # oid
-    revert_commit_requested = Signal(str)       # oid
+    merge_branch_requested = Signal(str)  # branch name (merge into current)
+    merge_commit_requested = Signal(str)  # oid (merge commit into current)
+    rebase_onto_branch_requested = Signal(str)  # branch name (rebase current onto)
+    rebase_onto_commit_requested = Signal(str)  # oid (rebase current onto commit)
+    interactive_rebase_branch_requested = Signal(str)  # branch name
+    interactive_rebase_commit_requested = Signal(str)  # oid
+    cherry_pick_requested = Signal(str)  # oid
+    revert_commit_requested = Signal(str)  # oid
     reset_to_commit_requested = Signal(str, object)  # oid, ResetMode
     reload_requested = Signal()
     push_requested = Signal()
@@ -200,7 +211,9 @@ class GraphWidget(QWidget):
     stash_requested = Signal()
     insight_requested = Signal()
 
-    def __init__(self, queries: QueryBus, commands: CommandBus, repo_store: IRepoStore, parent=None) -> None:
+    def __init__(
+        self, queries: QueryBus, commands: CommandBus, repo_store: IRepoStore, parent=None
+    ) -> None:
         super().__init__(parent)
         self._queries = queries
         self._loaded_count = 0  # how many commits loaded (excluding synthetic)
@@ -324,7 +337,6 @@ class GraphWidget(QWidget):
         for btn, icon_name in self._tinted_button_icons:
             btn.setIcon(_tinted_icon(str(_ARTS / f"{icon_name}.svg"), on_bg))
 
-
     def set_buses(self, queries: QueryBus | None, commands: CommandBus | None) -> None:
         self._queries = queries
         # Reset per-click state — the previous repo's selection is meaningless
@@ -393,14 +405,18 @@ class GraphWidget(QWidget):
         self._load_signals = signals  # prevent GC
 
         def _worker():
-            commits = queries.get_commit_graph.execute(limit=effective_limit, extra_tips=effective_tips, first_parent=fp)
+            commits = queries.get_commit_graph.execute(
+                limit=effective_limit, extra_tips=effective_tips, first_parent=fp
+            )
             branches = queries.get_branches.execute()
             tags = queries.get_tags.execute()
             dirty = queries.is_dirty.execute()
             head_oid = queries.get_head_oid.execute() or ""
             repo_state = queries.get_repo_state.execute()
             merge_head = queries.get_merge_head.execute()
-            signals.reload_done.emit(commits, branches, tags, dirty, head_oid, repo_state, merge_head, fp)
+            signals.reload_done.emit(
+                commits, branches, tags, dirty, head_oid, repo_state, merge_head, fp
+            )
 
         threading.Thread(target=_worker, daemon=True).start()
 
@@ -431,10 +447,17 @@ class GraphWidget(QWidget):
         self._pending_merge_base = merge_base
         self.reload(extra_tips=[oid])
 
-    def _on_reload_done(self, commits: list[Commit], branches: list[Branch],
-                        tags: list[Tag], is_dirty: bool, head_oid: str,
-                        repo_state_info, merge_head: str | None,
-                        first_parent: bool) -> None:
+    def _on_reload_done(
+        self,
+        commits: list[Commit],
+        branches: list[Branch],
+        tags: list[Tag],
+        is_dirty: bool,
+        head_oid: str,
+        repo_state_info,
+        merge_head: str | None,
+        first_parent: bool,
+    ) -> None:
         self._loading = False
         self._stash_btn.setVisible(is_dirty)
         if self._queries is None:
@@ -495,15 +518,13 @@ class GraphWidget(QWidget):
             }
             target_loaded = self._pending_scroll_oid in loaded_oids
             base_loaded = (
-                self._pending_merge_base is None
-                or self._pending_merge_base in loaded_oids
+                self._pending_merge_base is None or self._pending_merge_base in loaded_oids
             )
             if target_loaded and base_loaded:
                 self.scroll_to_oid(self._pending_scroll_oid, select=True)
                 self._pending_scroll_oid = None
                 self._pending_merge_base = None
             elif self._has_more and self._reload_limit < MAX_RELOAD_LIMIT:
-                oid = self._pending_scroll_oid
                 tips = self._extra_tips
                 new_limit = min(self._reload_limit * 2, MAX_RELOAD_LIMIT)
                 self._loading = False
@@ -596,15 +617,18 @@ class GraphWidget(QWidget):
         self._load_signals = signals  # prevent GC
 
         def _worker():
-            more = queries.get_commit_graph.execute(limit=PAGE_SIZE, skip=skip, extra_tips=self._extra_tips, first_parent=fp)
+            more = queries.get_commit_graph.execute(
+                limit=PAGE_SIZE, skip=skip, extra_tips=self._extra_tips, first_parent=fp
+            )
             branches = queries.get_branches.execute()
             tags = queries.get_tags.execute()
             signals.append_done.emit(more, branches, tags, fp)
 
         threading.Thread(target=_worker, daemon=True).start()
 
-    def _on_append_done(self, more: list[Commit], branches: list[Branch], tags: list[Tag],
-                        first_parent: bool) -> None:
+    def _on_append_done(
+        self, more: list[Commit], branches: list[Branch], tags: list[Tag], first_parent: bool
+    ) -> None:
         self._loading = False
         if self._queries is None:
             return
@@ -643,17 +667,17 @@ class GraphWidget(QWidget):
 
         menu = QMenu(self)
         menu.setToolTipsVisible(True)
-        menu.setStyleSheet(
-            "QMenu { padding: 6px; }"
-            "QMenu::item { padding: 6px 24px 6px 20px; }"
-        )
+        menu.setStyleSheet("QMenu { padding: 6px; }QMenu::item { padding: 6px 24px 6px 20px; }")
 
         menu.addAction("Create Branch").triggered.connect(
-            lambda: self.create_branch_requested.emit(oid))
+            lambda: self.create_branch_requested.emit(oid)
+        )
         menu.addAction("Create Tag...").triggered.connect(
-            lambda: self.create_tag_requested.emit(oid))
+            lambda: self.create_tag_requested.emit(oid)
+        )
         menu.addAction("Checkout (detached HEAD)").triggered.connect(
-            lambda: self.checkout_commit_requested.emit(oid))
+            lambda: self.checkout_commit_requested.emit(oid)
+        )
 
         # Filter out HEAD pseudo-ref and tag refs for branch operations
         real_branches = [n for n in branch_names if n != "HEAD" and not n.startswith("tag:")]
@@ -671,35 +695,41 @@ class GraphWidget(QWidget):
             if len(real_branches) == 1:
                 name = real_branches[0]
                 menu.addAction(f"Checkout branch: {name}").triggered.connect(
-                    lambda _checked=False, n=name: self.checkout_branch_requested.emit(n))
+                    lambda _checked=False, n=name: self.checkout_branch_requested.emit(n)
+                )
             else:
                 sub = menu.addMenu("Checkout branch")
                 for name in real_branches:
                     sub.addAction(name).triggered.connect(
-                        lambda _checked=False, n=name: self.checkout_branch_requested.emit(n))
+                        lambda _checked=False, n=name: self.checkout_branch_requested.emit(n)
+                    )
 
         if local_branches:
             if len(local_branches) == 1:
                 name = local_branches[0]
                 menu.addAction(f"Delete branch: {name}").triggered.connect(
-                    lambda _checked=False, n=name: self.delete_branch_requested.emit(n))
+                    lambda _checked=False, n=name: self.delete_branch_requested.emit(n)
+                )
             else:
                 sub = menu.addMenu("Delete branch")
                 for name in local_branches:
                     sub.addAction(name).triggered.connect(
-                        lambda _checked=False, n=name: self.delete_branch_requested.emit(n))
+                        lambda _checked=False, n=name: self.delete_branch_requested.emit(n)
+                    )
 
         remote_branches = [n for n in real_branches if n not in local_set]
         if remote_branches:
             if len(remote_branches) == 1:
                 name = remote_branches[0]
                 menu.addAction(f"Delete remote branch: {name}").triggered.connect(
-                    lambda _checked=False, n=name: self._emit_remote_delete(n))
+                    lambda _checked=False, n=name: self._emit_remote_delete(n)
+                )
             else:
                 sub = menu.addMenu("Delete remote branch")
                 for name in remote_branches:
                     sub.addAction(name).triggered.connect(
-                        lambda _checked=False, n=name: self._emit_remote_delete(n))
+                        lambda _checked=False, n=name: self._emit_remote_delete(n)
+                    )
 
         self._add_merge_rebase_section(menu, oid, real_branches)
 
@@ -716,7 +746,9 @@ class GraphWidget(QWidget):
             return
         self.remote_branch_delete_requested.emit(remote, branch)
 
-    def _add_merge_rebase_section(self, menu: QMenu, oid: str, branches_on_commit: list[str]) -> None:
+    def _add_merge_rebase_section(
+        self, menu: QMenu, oid: str, branches_on_commit: list[str]
+    ) -> None:
         """Append the Merge / Rebase section to a context menu, applying disable rules."""
         try:
             state_info = self._queries.get_repo_state.execute()
@@ -783,47 +815,59 @@ class GraphWidget(QWidget):
                     ancestor_tooltip = "Already up to date"
             except Exception:
                 pass
-            merge_actions.append((
-                f"{b} into {head_label}",
-                ancestor_tooltip,
-                lambda _checked=False, n=b: self.merge_branch_requested.emit(n),
-            ))
+            merge_actions.append(
+                (
+                    f"{b} into {head_label}",
+                    ancestor_tooltip,
+                    lambda _checked=False, n=b: self.merge_branch_requested.emit(n),
+                )
+            )
         if show_commit_merge:
-            merge_actions.append((
-                f"commit {short_oid} into {head_label}",
-                None,
-                lambda _checked=False, o=oid: self.merge_commit_requested.emit(o),
-            ))
+            merge_actions.append(
+                (
+                    f"commit {short_oid} into {head_label}",
+                    None,
+                    lambda _checked=False, o=oid: self.merge_commit_requested.emit(o),
+                )
+            )
 
         # Collect rebase actions
         rebase_actions: list[tuple[str, str | None, object]] = []
         for b in branch_targets:
-            rebase_actions.append((
-                f"{head_label} onto {b}",
-                None,
-                lambda _checked=False, n=b: self.rebase_onto_branch_requested.emit(n),
-            ))
+            rebase_actions.append(
+                (
+                    f"{head_label} onto {b}",
+                    None,
+                    lambda _checked=False, n=b: self.rebase_onto_branch_requested.emit(n),
+                )
+            )
         if show_commit_rebase:
-            rebase_actions.append((
-                f"{head_label} onto commit {short_oid}",
-                None,
-                lambda _checked=False, o=oid: self.rebase_onto_commit_requested.emit(o),
-            ))
+            rebase_actions.append(
+                (
+                    f"{head_label} onto commit {short_oid}",
+                    None,
+                    lambda _checked=False, o=oid: self.rebase_onto_commit_requested.emit(o),
+                )
+            )
 
         # Collect interactive rebase actions
         irebase_actions: list[tuple[str, str | None, object]] = []
         for b in branch_targets:
-            irebase_actions.append((
-                f"Interactive rebase onto {b}",
-                None,
-                lambda _checked=False, n=b: self.interactive_rebase_branch_requested.emit(n),
-            ))
+            irebase_actions.append(
+                (
+                    f"Interactive rebase onto {b}",
+                    None,
+                    lambda _checked=False, n=b: self.interactive_rebase_branch_requested.emit(n),
+                )
+            )
         if show_commit_rebase:
-            irebase_actions.append((
-                f"Interactive rebase onto commit {short_oid}",
-                None,
-                lambda _checked=False, o=oid: self.interactive_rebase_commit_requested.emit(o),
-            ))
+            irebase_actions.append(
+                (
+                    f"Interactive rebase onto commit {short_oid}",
+                    None,
+                    lambda _checked=False, o=oid: self.interactive_rebase_commit_requested.emit(o),
+                )
+            )
 
         # Add merge actions: submenu if ≥2, top-level if 1
         if len(merge_actions) == 1:
@@ -867,7 +911,8 @@ class GraphWidget(QWidget):
                 cp_action.setToolTip(global_disable_reason)
             else:
                 cp_action.triggered.connect(
-                    lambda _checked=False, o=oid: self.cherry_pick_requested.emit(o))
+                    lambda _checked=False, o=oid: self.cherry_pick_requested.emit(o)
+                )
 
             # Revert
             rv_action = menu.addAction(f"Revert commit {short_oid}")
@@ -876,7 +921,8 @@ class GraphWidget(QWidget):
                 rv_action.setToolTip(global_disable_reason)
             else:
                 rv_action.triggered.connect(
-                    lambda _checked=False, o=oid: self.revert_commit_requested.emit(o))
+                    lambda _checked=False, o=oid: self.revert_commit_requested.emit(o)
+                )
 
             # Reset — only enabled when target is an ancestor of HEAD.
             can_reset = False
@@ -902,8 +948,10 @@ class GraphWidget(QWidget):
                     a.setToolTip("Target is not an ancestor of HEAD")
                 else:
                     a.triggered.connect(
-                        lambda _checked=False, o=oid, m=mode:
-                            self.reset_to_commit_requested.emit(o, m))
+                        lambda _checked=False, o=oid, m=mode: self.reset_to_commit_requested.emit(
+                            o, m
+                        )
+                    )
 
     def reload_and_scroll_to(self, oid: str) -> None:
         """Reload and scroll to the given oid after load completes."""
@@ -972,7 +1020,8 @@ class GraphWidget(QWidget):
             self._search_idx = 0
             self._jump_to_match()
         self._search_bar.set_match_label(
-            self._search_idx, len(self._search_matches),
+            self._search_idx,
+            len(self._search_matches),
         )
 
     def _on_search_navigate(self, direction: int) -> None:
@@ -981,7 +1030,8 @@ class GraphWidget(QWidget):
         self._search_idx = (self._search_idx + direction) % len(self._search_matches)
         self._jump_to_match()
         self._search_bar.set_match_label(
-            self._search_idx, len(self._search_matches),
+            self._search_idx,
+            len(self._search_matches),
         )
 
     def _jump_to_match(self) -> None:

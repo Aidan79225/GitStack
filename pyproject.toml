@@ -8,6 +8,7 @@ dependencies = [
     "pygit2>=1.19.2,<2",
     "pyside6>=6.11.0,<7",
     "pygments>=2.17",
+    "sentry-sdk>=2.0",
 ]
 
 [dependency-groups]
@@ -15,4 +16,55 @@ dev = [
     "pytest>=9.0.2",
     "pytest-qt>=4.5.0",
     "pyinstaller>=6.0",
+    "ruff>=0.7",
+    "mypy>=1.10",
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = [
+    "docs",
+    "GitCrisp.spec",
+    "build",
+    "dist",
+    ".venv",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "E501",   # line length (Ruff format enforces 100)
+    "E402",   # module import not at top — intentional for Qt init / circulars
+    "E702",   # multiple statements on one line — used in theme_dialog one-liners
+    "B008",   # function call in default arg — PySide6 idioms use this
+    "B904",   # raise without from — error surfacing in this codebase doesn't chain
+    "UP042",  # StrEnum migration is a separate semantic refactor
+    "RUF059", # unused unpacked variable — cosmetic
+    "RUF001", # ambiguous unicode — codebase uses em-dash intentionally
+    "RUF043", # pytest.raises pattern — fine for now
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B", "F841"]  # tests use asserts, patches, and intentional bindings
+
+[tool.mypy]
+python_version = "3.13"
+files = ["git_gui"]
+ignore_missing_imports = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = ["git_gui.domain.*", "git_gui.application.*"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+warn_return_any = true
+no_implicit_optional = true

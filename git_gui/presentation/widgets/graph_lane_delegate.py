@@ -1,13 +1,14 @@
 # git_gui/presentation/widgets/graph_lane_delegate.py
 from __future__ import annotations
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QStyle, QStyledItemDelegate, QStyleOptionViewItem
 
 from git_gui.presentation.theme import get_theme_manager
 
-LANE_W = 16   # pixels per lane column
-NODE_R = 4    # commit node circle radius
+LANE_W = 16  # pixels per lane column
+NODE_R = 4  # commit node circle radius
 
 
 def _lane_colors() -> list[str]:

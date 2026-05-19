@@ -1,6 +1,8 @@
 # git_gui/presentation/widgets/file_list_view.py
 """Shared QListView subclass with click-to-deselect and checkbox-without-select."""
+
 from __future__ import annotations
+
 from PySide6.QtCore import QModelIndex, QRect, QSize, Qt, Signal
 from PySide6.QtGui import QBrush, QPainter
 from PySide6.QtWidgets import QListView, QStyle, QStyledItemDelegate, QStyleOptionViewItem
@@ -72,9 +74,7 @@ class FileListView(QListView):
         self.initViewItemOption(opt)
         opt.rect = self.visualRect(index)
         opt.features |= QStyleOptionViewItem.HasCheckIndicator
-        return self.style().subElementRect(
-            QStyle.SE_ItemViewItemCheckIndicator, opt, self
-        )
+        return self.style().subElementRect(QStyle.SE_ItemViewItemCheckIndicator, opt, self)
 
     def mousePressEvent(self, event) -> None:
         clicked = self.indexAt(event.pos())
@@ -91,8 +91,7 @@ class FileListView(QListView):
 
         # Case 2: click on the already-selected row → deselect
         current = self.currentIndex()
-        if (clicked.isValid() and clicked == current
-                and self.selectionModel().isSelected(current)):
+        if clicked.isValid() and clicked == current and self.selectionModel().isSelected(current):
             self.selectionModel().clear()
             self.setCurrentIndex(QModelIndex())
             self.viewport().update()
@@ -108,10 +107,10 @@ class FileListView(QListView):
 
 DELTA_LABEL = {
     "modified": "M",
-    "added":    "A",
-    "deleted":  "D",
-    "renamed":  "R",
-    "unknown":  "?",
+    "added": "A",
+    "deleted": "D",
+    "renamed": "R",
+    "unknown": "?",
 }
 
 BADGE_SIZE = 20
@@ -147,7 +146,9 @@ class FileDeltaDelegate(QStyledItemDelegate):
         text_x = badge_x + BADGE_SIZE + BADGE_GAP
         text_rect = QRect(text_x, rect.top(), rect.right() - text_x, rect.height())
         painter.setPen(option.palette.text().color())
-        painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft, index.data(Qt.DisplayRole) or "")
+        painter.drawText(
+            text_rect, Qt.AlignVCenter | Qt.AlignLeft, index.data(Qt.DisplayRole) or ""
+        )
 
         painter.restore()
 

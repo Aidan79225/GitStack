@@ -1,7 +1,16 @@
 from __future__ import annotations
+
 from PySide6.QtWidgets import (
-    QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout,
-    QLineEdit, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QHBoxLayout,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
 )
 
@@ -45,13 +54,14 @@ class _RenameDialog(QDialog):
 
 
 class _UpstreamDialog(QDialog):
-    def __init__(self, parent=None, remote_branches: list[str] | None = None,
-                 current: str | None = None) -> None:
+    def __init__(
+        self, parent=None, remote_branches: list[str] | None = None, current: str | None = None
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Set Upstream")
         self._combo = QComboBox()
         self._combo.addItem("(none)")
-        for rb in (remote_branches or []):
+        for rb in remote_branches or []:
             self._combo.addItem(rb)
         if current:
             idx = self._combo.findText(current)
@@ -127,7 +137,8 @@ class BranchesDialog(QDialog):
             self._table.insertRow(row)
             self._table.setItem(row, 0, QTableWidgetItem(info.name))
             self._table.setItem(
-                row, 1,
+                row,
+                1,
                 QTableWidgetItem(info.upstream if info.upstream else "(none)"),
             )
             commit_text = f"{info.last_commit_sha}  {info.last_commit_message}"
@@ -220,7 +231,10 @@ class BranchesDialog(QDialog):
         name = self._selected_name()
         if not name:
             return
-        if QMessageBox.question(self, "Delete branch", f"Delete branch '{name}'?") != QMessageBox.Yes:
+        if (
+            QMessageBox.question(self, "Delete branch", f"Delete branch '{name}'?")
+            != QMessageBox.Yes
+        ):
             return
         try:
             self._commands.delete_branch.execute(name)

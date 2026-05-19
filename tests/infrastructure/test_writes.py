@@ -1,8 +1,10 @@
+from pathlib import Path
+
 import pygit2
 import pytest
-from pathlib import Path
-from git_gui.infrastructure.pygit2 import Pygit2Repository
+
 from git_gui.domain.entities import MergeStrategy, RepoState
+from git_gui.infrastructure.pygit2 import Pygit2Repository
 
 
 @pytest.fixture
@@ -119,8 +121,7 @@ def test_merge_commit_fast_forward(writable_repo):
     # Get main/master branch name dynamically
     branches = impl.get_branches()
     main_branch_name = next(
-        (b.name for b in branches if not b.is_remote and b.name in ["main", "master"]),
-        "master"
+        (b.name for b in branches if not b.is_remote and b.name in ["main", "master"]), "master"
     )
     # Checkout main/master branch
     impl.checkout(main_branch_name)
@@ -147,7 +148,11 @@ def test_rebase_onto_commit(writable_repo):
     impl.stage(["c.txt"])
     c = impl.commit("C on feature")
     # back to main, rebase onto commit C
-    main_name = "main" if "main" in [br.name for br in impl.get_branches() if not br.is_remote] else "master"
+    main_name = (
+        "main"
+        if "main" in [br.name for br in impl.get_branches() if not br.is_remote]
+        else "master"
+    )
     impl.checkout(main_name)
 
     impl.rebase_onto_commit(c.oid)
@@ -283,7 +288,6 @@ def test_rebase_abort_restores_clean_state(writable_repo):
 
     # During rebase, git detaches HEAD so repo_state returns DETACHED_HEAD;
     # verify rebase is in progress via the rebase-merge directory
-    import os
     raw2 = pygit2.Repository(str(path))
     assert raw2.state() != pygit2.GIT_REPOSITORY_STATE_NONE
 
@@ -329,6 +333,7 @@ def test_interactive_rebase_squash(repo_impl, repo_path):
     assert len(new_commits) == 2
     # The squashed commit should contain both files
     import os
+
     assert os.path.exists(repo_path / "b.txt")
     assert os.path.exists(repo_path / "c.txt")
 
@@ -355,5 +360,6 @@ def test_interactive_rebase_drop(repo_impl, repo_path):
     new_commits = repo_impl.get_commits(limit=10)
     assert len(new_commits) == 2  # initial + B only
     import os
+
     assert os.path.exists(repo_path / "b.txt")
     assert not os.path.exists(repo_path / "c.txt")

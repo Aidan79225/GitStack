@@ -1,10 +1,11 @@
 """Tests for CommitDetailWidget — click-to-copy commit hash."""
+
 from __future__ import annotations
 
 from datetime import datetime
 
 import pytest
-from PySide6.QtCore import Qt, QRect, QPoint, QPointF
+from PySide6.QtCore import QPoint, QPointF, QRect, Qt
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QApplication
 
@@ -34,6 +35,7 @@ def _disable_avatar_loader():
     tests.
     """
     from git_gui.presentation.widgets.avatar_loader import get_avatar_loader
+
     loader = get_avatar_loader()
     original = loader._enabled
     loader._enabled = False
@@ -63,8 +65,11 @@ def _send_click(widget: CommitDetailWidget, pos: QPoint) -> None:
     pos_f = QPointF(pos)
     press = QMouseEvent(
         QMouseEvent.Type.MouseButtonPress,
-        pos_f, pos_f,
-        Qt.LeftButton, Qt.LeftButton, Qt.NoModifier,
+        pos_f,
+        pos_f,
+        Qt.LeftButton,
+        Qt.LeftButton,
+        Qt.NoModifier,
     )
     QApplication.sendEvent(widget, press)
 

@@ -1,12 +1,19 @@
 from datetime import datetime
+
+from PySide6.QtCore import Qt
+
 from git_gui.domain.entities import Commit
 from git_gui.presentation.models.graph_model import CommitInfo, GraphModel, LaneData
-from PySide6.QtCore import Qt
 
 
 def _make_commit(oid="abc", msg="Initial commit", parents=None):
-    return Commit(oid=oid, message=msg, author="Alice <a@a.com>",
-                  timestamp=datetime(2026, 1, 1, 14, 32), parents=parents or [])
+    return Commit(
+        oid=oid,
+        message=msg,
+        author="Alice <a@a.com>",
+        timestamp=datetime(2026, 1, 1, 14, 32),
+        parents=parents or [],
+    )
 
 
 def test_row_count_matches_commits(qtbot):
@@ -122,42 +129,48 @@ def test_invalid_index_returns_none(qtbot):
 
 def test_badge_color_head():
     from git_gui.presentation.widgets.ref_badge_delegate import _badge_color
+
     color = _badge_color("HEAD")
     assert color.name().lower() == "#238636"
 
 
 def test_badge_color_head_arrow():
     from git_gui.presentation.widgets.ref_badge_delegate import _badge_color
+
     color = _badge_color("HEAD -> main")
     assert color.name().lower() == "#238636"
 
 
 def test_badge_color_remote():
     from git_gui.presentation.widgets.ref_badge_delegate import _badge_color
+
     color = _badge_color("origin/main")
     assert color.name().lower() == "#1f4287"
 
 
 def test_badge_color_local():
     from git_gui.presentation.widgets.ref_badge_delegate import _badge_color
+
     color = _badge_color("main")
     assert color.name().lower() == "#0d6efd"
 
 
 # ── First-parent mode: side parents are ignored ──────────────────────────────
 
+
 def test_compute_lanes_first_parent_collapses_merge_to_single_lane(qtbot):
     """In first_parent mode, a merge commit whose second parent isn't in the
     listing must NOT open an extra lane or draw a diagonal outgoing edge —
     otherwise the graph paints a stub line to a ghost lane."""
     from git_gui.presentation.models.graph_model import _compute_lanes
+
     # M (merge of feature into master, second parent D not in list)
     # B (master, M's first parent)
     # A (initial)
     commits = [
         _make_commit("M", "Merge", parents=["B", "D"]),
-        _make_commit("B", "B",     parents=["A"]),
-        _make_commit("A", "A",     parents=[]),
+        _make_commit("B", "B", parents=["A"]),
+        _make_commit("A", "A", parents=[]),
     ]
     lanes = _compute_lanes(commits, first_parent=True)
     # Every commit sits in lane 0 and never spawns a side lane.
@@ -172,10 +185,11 @@ def test_compute_lanes_full_mode_keeps_side_lane(qtbot):
     spawn an extra lane and a diagonal edge, so the toggle is what's making
     the difference."""
     from git_gui.presentation.models.graph_model import _compute_lanes
+
     commits = [
         _make_commit("M", "Merge", parents=["B", "D"]),
-        _make_commit("B", "B",     parents=["A"]),
-        _make_commit("A", "A",     parents=[]),
+        _make_commit("B", "B", parents=["A"]),
+        _make_commit("A", "A", parents=[]),
     ]
     lanes = _compute_lanes(commits, first_parent=False)
     # M's row knows it has 2 edges_out (one straight, one diagonal to D's lane).
@@ -190,7 +204,7 @@ def test_graph_model_reload_first_parent_kwarg_recomputes_lanes(qtbot):
     model = GraphModel([], {})
     commits = [
         _make_commit("M", "Merge", parents=["B", "D"]),
-        _make_commit("B", "B",     parents=["A"]),
+        _make_commit("B", "B", parents=["A"]),
     ]
     model.reload(commits, {}, first_parent=True)
     # Toggle persisted; the lane data agrees.

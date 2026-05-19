@@ -1,22 +1,25 @@
 """Tests for GraphWidget synthetic commit row logic in _on_reload_done."""
+
 from __future__ import annotations
 
 from datetime import datetime
 from unittest.mock import MagicMock
 
-import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget
 
-from git_gui.domain.entities import Commit, RepoState, RepoStateInfo, WORKING_TREE_OID
+from git_gui.domain.entities import WORKING_TREE_OID, Commit, RepoState, RepoStateInfo
 from git_gui.presentation.models.graph_model import GraphModel
 from git_gui.presentation.widgets.graph import GraphWidget
 
 
 def _make_commit(oid: str = "aaa", msg: str = "hello", parents: list[str] | None = None) -> Commit:
     return Commit(
-        oid=oid, message=msg, author="A <a@a.com>",
-        timestamp=datetime(2026, 1, 1), parents=parents or [],
+        oid=oid,
+        message=msg,
+        author="A <a@a.com>",
+        timestamp=datetime(2026, 1, 1),
+        parents=parents or [],
     )
 
 
@@ -61,8 +64,14 @@ def test_dirty_clean_creates_uncommitted_changes_row(qtbot):
     commits = [_make_commit("c1", parents=[])]
 
     w._on_reload_done(
-        commits, [], [], True, HEAD_OID,
-        _state_info(RepoState.CLEAN), None, False,
+        commits,
+        [],
+        [],
+        True,
+        HEAD_OID,
+        _state_info(RepoState.CLEAN),
+        None,
+        False,
     )
 
     assert w._model.rowCount() == 2
@@ -82,8 +91,14 @@ def test_dirty_merging_creates_merge_in_progress_row(qtbot):
     commits = [_make_commit("c1")]
 
     w._on_reload_done(
-        commits, [], [], True, HEAD_OID,
-        _state_info(RepoState.MERGING), merge_head, False,
+        commits,
+        [],
+        [],
+        True,
+        HEAD_OID,
+        _state_info(RepoState.MERGING),
+        merge_head,
+        False,
     )
 
     assert w._model.rowCount() == 2
@@ -99,8 +114,14 @@ def test_dirty_rebasing_creates_rebase_in_progress_row(qtbot):
     commits = [_make_commit("c1")]
 
     w._on_reload_done(
-        commits, [], [], True, HEAD_OID,
-        _state_info(RepoState.REBASING), None, False,
+        commits,
+        [],
+        [],
+        True,
+        HEAD_OID,
+        _state_info(RepoState.REBASING),
+        None,
+        False,
     )
 
     assert w._model.rowCount() == 2
@@ -116,8 +137,14 @@ def test_not_dirty_no_synthetic_row(qtbot):
     commits = [_make_commit("c1"), _make_commit("c2")]
 
     w._on_reload_done(
-        commits, [], [], False, HEAD_OID,
-        _state_info(RepoState.CLEAN), None, False,
+        commits,
+        [],
+        [],
+        False,
+        HEAD_OID,
+        _state_info(RepoState.CLEAN),
+        None,
+        False,
     )
 
     assert w._model.rowCount() == 2  # exactly the real commits, no synthetic
@@ -127,8 +154,14 @@ def test_unborn_head_empty_graph(qtbot):
     w = _make_widget(qtbot)
 
     w._on_reload_done(
-        [], [], [], False, "",
-        _state_info(RepoState.CLEAN), None, False,
+        [],
+        [],
+        [],
+        False,
+        "",
+        _state_info(RepoState.CLEAN),
+        None,
+        False,
     )
 
     assert w._model.rowCount() == 0

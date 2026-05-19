@@ -1,20 +1,32 @@
 # git_gui/presentation/widgets/diff.py
 from __future__ import annotations
+
 import logging
+
 from PySide6.QtCore import QEvent, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
-    QHBoxLayout, QLabel, QPlainTextEdit, QPushButton,
-    QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
+    QHBoxLayout,
+    QLabel,
+    QPlainTextEdit,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
 )
+
 from git_gui.presentation.bus import CommandBus, QueryBus
-from git_gui.presentation.theme import get_theme_manager, connect_widget
 from git_gui.presentation.models.diff_model import DiffModel
-from git_gui.presentation.widgets.commit_detail import CommitDetailWidget
-from git_gui.presentation.widgets.file_navigator import FileNavigatorWidget, NavMode
-from git_gui.presentation.widgets.diff_block import (
-    make_file_block, make_diff_formats, make_syntax_formats, add_hunk_widget,
-)
+from git_gui.presentation.theme import connect_widget, get_theme_manager
 from git_gui.presentation.widgets._collapse_toggle import _CollapseToggle
+from git_gui.presentation.widgets.commit_detail import CommitDetailWidget
+from git_gui.presentation.widgets.diff_block import (
+    add_hunk_widget,
+    make_diff_formats,
+    make_file_block,
+    make_syntax_formats,
+)
+from git_gui.presentation.widgets.file_navigator import FileNavigatorWidget, NavMode
 from git_gui.presentation.widgets.viewport_block_loader import ViewportBlockLoader
 
 logger = logging.getLogger(__name__)
@@ -25,7 +37,7 @@ class _StickyPinController:
 
     HYSTERESIS_PX = 32
 
-    def __init__(self, owner: "DiffWidget") -> None:
+    def __init__(self, owner: DiffWidget) -> None:
         self._owner = owner
         self._threshold = 0
         self._pinned = False
@@ -170,9 +182,7 @@ class DiffWidget(QWidget):
         banner_layout.addWidget(self._banner_label, 1)
         banner_layout.addWidget(self._btn_abort)
         banner_layout.addWidget(self._btn_continue)
-        self._state_banner.setStyleSheet(
-            "background-color: #5c2d2d; border: none; padding: 2px;"
-        )
+        self._state_banner.setStyleSheet("background-color: #5c2d2d; border: none; padding: 2px;")
         self._state_banner.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         self._state_banner.setVisible(False)
         self._btn_abort.clicked.connect(self._on_banner_abort)
@@ -181,9 +191,7 @@ class DiffWidget(QWidget):
         # ── Row 1: commit detail (3-line metadata) ──────────────────────────
         self._detail = CommitDetailWidget()
         self._detail.setAutoFillBackground(True)
-        self._detail.commit_oid_copy_requested.connect(
-            self.commit_oid_copy_requested.emit
-        )
+        self._detail.commit_oid_copy_requested.connect(self.commit_oid_copy_requested.emit)
 
         # ── Row 2: full commit message ──────────────────────────────────────
         self._msg_view = QPlainTextEdit()
@@ -300,9 +308,7 @@ class DiffWidget(QWidget):
     def _on_msg_toggle(self, expanded: bool) -> None:
         if self._msg_full_h <= 0 or self._msg_collapsed_h <= 0:
             return
-        self._msg_view.setFixedHeight(
-            self._msg_full_h if expanded else self._msg_collapsed_h
-        )
+        self._msg_view.setFixedHeight(self._msg_full_h if expanded else self._msg_collapsed_h)
 
     def update_state_banner(self, state_name: str) -> None:
         """Show or hide the merge/rebase state banner."""
@@ -380,7 +386,8 @@ class DiffWidget(QWidget):
         # stalls whenever the cursor sits over the message text.
         if obj is self._msg_view.viewport() and event.type() in (
             QEvent.MouseButtonPress,
-            QEvent.MouseButtonRelease, QEvent.MouseMove,
+            QEvent.MouseButtonRelease,
+            QEvent.MouseMove,
         ):
             return True
         return super().eventFilter(obj, event)
@@ -462,25 +469,22 @@ class DiffWidget(QWidget):
             self._submodule_paths = set()
             return
         try:
-            self._submodule_paths = {
-                s.path for s in self._queries.list_submodules.execute()
-            }
+            self._submodule_paths = {s.path for s in self._queries.list_submodules.execute()}
         except Exception:
             self._submodule_paths = set()
 
     def _build_file_block(self, path: str, hunks):
         """Build and return a bordered QFrame containing a file header and per-hunk widgets."""
         is_submodule = path in self._submodule_paths
-        on_click = (
-            (lambda p=path: self.submodule_open_requested.emit(p))
-            if is_submodule else None
-        )
+        on_click = (lambda p=path: self.submodule_open_requested.emit(p)) if is_submodule else None
         frame, inner = make_file_block(path, on_header_clicked=on_click)
         frame.setProperty("file_path", path)
 
         for hunk in hunks:
             add_hunk_widget(
-                inner, hunk, self._formats,
+                inner,
+                hunk,
+                self._formats,
                 on_header_clicked=on_click,
                 syntax_formats=self._syntax_formats,
                 filename=path,
@@ -491,11 +495,9 @@ class DiffWidget(QWidget):
     def _build_skeleton_block(self, path: str):
         """Build a file block with a skeleton placeholder. Returns (frame, inner, skeleton)."""
         from git_gui.presentation.widgets.diff_block import make_skeleton_container
+
         is_submodule = path in self._submodule_paths
-        on_click = (
-            (lambda p=path: self.submodule_open_requested.emit(p))
-            if is_submodule else None
-        )
+        on_click = (lambda p=path: self.submodule_open_requested.emit(p)) if is_submodule else None
         frame, inner = make_file_block(
             path,
             on_header_clicked=on_click,
@@ -512,13 +514,12 @@ class DiffWidget(QWidget):
             inner.removeWidget(skeleton)
             skeleton.deleteLater()
         is_submodule = path in self._submodule_paths
-        on_click = (
-            (lambda p=path: self.submodule_open_requested.emit(p))
-            if is_submodule else None
-        )
+        on_click = (lambda p=path: self.submodule_open_requested.emit(p)) if is_submodule else None
         for hunk in hunks:
             add_hunk_widget(
-                inner, hunk, self._formats,
+                inner,
+                hunk,
+                self._formats,
                 on_header_clicked=on_click,
                 syntax_formats=self._syntax_formats,
                 filename=path,
@@ -527,6 +528,7 @@ class DiffWidget(QWidget):
         # If the user collapsed this file before realize fired, the newly
         # added hunk widgets default to visible — sync them with the toggle.
         from git_gui.presentation.widgets._collapse_toggle import _CollapseToggle
+
         frame = inner.parentWidget()  # the QFrame that owns `inner`
         toggle = frame.findChild(_CollapseToggle) if frame is not None else None
         if toggle is not None and not toggle.isChecked():
@@ -564,14 +566,13 @@ class DiffWidget(QWidget):
         self._diff_layout.addWidget(block)
         self._diff_layout.addStretch()
         if self._sticky_controller._pinned:
-            self._scroll_area.verticalScrollBar().setValue(
-                self._diff_container.geometry().top()
-            )
+            self._scroll_area.verticalScrollBar().setValue(self._diff_container.geometry().top())
         # (else: leave scroll position alone — user is in unpinned, full-context view)
 
     def _render_all_files(self, oid: str) -> None:
         """Render all file blocks as skeletons immediately, then fetch diffs in background."""
         import threading
+
         from PySide6.QtCore import QObject, Signal
 
         self._refresh_submodule_paths()
@@ -592,9 +593,7 @@ class DiffWidget(QWidget):
 
         self._diff_layout.addStretch()
         if self._sticky_controller._pinned:
-            self._scroll_area.verticalScrollBar().setValue(
-                self._diff_container.geometry().top()
-            )
+            self._scroll_area.verticalScrollBar().setValue(self._diff_container.geometry().top())
 
         self._loader.set_blocks(block_refs)
 

@@ -1,10 +1,13 @@
 # git_gui/presentation/widgets/log_panel.py
 from __future__ import annotations
+
 from datetime import datetime
+
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QTextCharFormat, QTextCursor
+from PySide6.QtGui import QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import QLabel, QPlainTextEdit, QVBoxLayout, QWidget
-from git_gui.presentation.theme import get_theme_manager, connect_widget
+
+from git_gui.presentation.theme import connect_widget, get_theme_manager
 
 
 class LogPanel(QWidget):

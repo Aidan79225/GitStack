@@ -8,6 +8,7 @@ Mode-switch and active-file highlight are driven externally — by
 DiffWidget's _StickyPinController in the case of pin/unpin, and by scroll-
 based auto-highlight logic.
 """
+
 from __future__ import annotations
 
 from enum import Enum
@@ -212,9 +213,7 @@ class FileNavigatorWidget(QWidget):
         visual checked state to False — we reset it from the selection model.
         """
         idx = self._model.index(row)
-        self.selection_model.setCurrentIndex(
-            idx, QItemSelectionModel.SelectionFlag.ClearAndSelect
-        )
+        self.selection_model.setCurrentIndex(idx, QItemSelectionModel.SelectionFlag.ClearAndSelect)
         self._sync_pills_to_selection(self.selection_model.currentIndex(), QModelIndex())
 
     def _on_all_pill_clicked(self) -> None:

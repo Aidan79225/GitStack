@@ -1,14 +1,15 @@
 from __future__ import annotations
-from collections.abc import Callable, Iterator
-from datetime import datetime
+
 import logging
 import subprocess
+from collections.abc import Callable, Iterator
+from datetime import datetime
 
 import pygit2
 
-from git_gui.resources import subprocess_kwargs
 from git_gui.domain.entities import Commit, CommitStat, FileStat, FileStatus, Hunk, ResetMode
 from git_gui.infrastructure.pygit2._helpers import _commit_to_entity, _diff_to_hunks
+from git_gui.resources import subprocess_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,7 @@ class CommitOps:
     Mixin — not instantiable on its own. Relies on `self._repo` and
     `self._commit_ops` set up by the composite class.
     """
+
     _repo: pygit2.Repository  # provided by the composite
 
     # ── METHODS COPIED VERBATIM from Pygit2Repository ─────────────────
@@ -46,7 +48,7 @@ class CommitOps:
             if not head_ref.name.startswith("refs/heads/"):
                 pass  # detached HEAD — no upstream
             else:
-                local_name = head_ref.name[len("refs/heads/"):]
+                local_name = head_ref.name[len("refs/heads/") :]
                 local_branch = self._repo.branches.local[local_name]
                 if local_branch.upstream:
                     walker.push(local_branch.upstream.resolve().target)
@@ -54,7 +56,7 @@ class CommitOps:
             pass
 
         # Push extra tips (e.g. clicked branch)
-        for tip in (extra_tips or []):
+        for tip in extra_tips or []:
             try:
                 walker.push(pygit2.Oid(hex=tip))
             except (ValueError, Exception):
@@ -69,7 +71,7 @@ class CommitOps:
                 next(walker)
             except StopIteration:
                 return []
-        return [_commit_to_entity(c) for c, _ in zip(walker, range(limit))]
+        return [_commit_to_entity(c) for c, _ in zip(walker, range(limit), strict=False)]
 
     def get_commit(self, oid: str) -> Commit:
         obj = self._repo.get(oid)
@@ -112,9 +114,7 @@ class CommitOps:
 
     def merge_base(self, oid_a: str, oid_b: str) -> str | None:
         try:
-            result = self._repo.merge_base(
-                pygit2.Oid(hex=oid_a), pygit2.Oid(hex=oid_b)
-            )
+            result = self._repo.merge_base(pygit2.Oid(hex=oid_a), pygit2.Oid(hex=oid_b))
         except (KeyError, ValueError, pygit2.GitError):
             return None
         return str(result) if result is not None else None
@@ -133,10 +133,10 @@ class CommitOps:
             delta = patch.delta
             path = delta.new_file.path or delta.old_file.path
             delta_type = {
-                pygit2.GIT_DELTA_ADDED:    "added",
-                pygit2.GIT_DELTA_DELETED:  "deleted",
+                pygit2.GIT_DELTA_ADDED: "added",
+                pygit2.GIT_DELTA_DELETED: "deleted",
                 pygit2.GIT_DELTA_MODIFIED: "modified",
-                pygit2.GIT_DELTA_RENAMED:  "renamed",
+                pygit2.GIT_DELTA_RENAMED: "renamed",
             }.get(delta.status, "unknown")
             files.append(FileStatus(path=path, status="staged", delta=delta_type))
         return files
@@ -279,7 +279,7 @@ class CommitOps:
 
     # ----------------------------------------------------------------- writes
 
-    def commit(self, message: str) -> "Commit":
+    def commit(self, message: str) -> Commit:
         self._repo.index.write()
         tree = self._repo.index.write_tree()
         sig = self._get_signature()

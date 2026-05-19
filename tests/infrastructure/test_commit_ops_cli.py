@@ -1,14 +1,17 @@
 from __future__ import annotations
+
 import subprocess
 from pathlib import Path
+
 import pytest
 
 from git_gui.infrastructure.commit_ops_cli import CommitOpsCli, CommitOpsCommandError
 
 
 def _run(cwd: str, *args: str) -> None:
-    subprocess.run(["git", *args], cwd=cwd, check=True,
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(
+        ["git", *args], cwd=cwd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
 
 
 def _commit(cwd: Path, filename: str, content: str, msg: str) -> str:
@@ -16,8 +19,11 @@ def _commit(cwd: Path, filename: str, content: str, msg: str) -> str:
     _run(str(cwd), "add", "-A")
     _run(str(cwd), "commit", "-m", msg)
     r = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=str(cwd),
-        capture_output=True, text=True, check=True,
+        ["git", "rev-parse", "HEAD"],
+        cwd=str(cwd),
+        capture_output=True,
+        text=True,
+        check=True,
     )
     return r.stdout.strip()
 
@@ -41,8 +47,11 @@ def test_cherry_pick_non_merge_applies_commit_to_head(linear_repo, tmp_path):
     # Cherry-pick: pick the top-of-master commit onto feature.
     # First we need a non-conflicting commit — use the tip which adds c.txt.
     tip_on_master = subprocess.run(
-        ["git", "rev-parse", "master"], cwd=str(repo_path),
-        capture_output=True, text=True, check=True,
+        ["git", "rev-parse", "master"],
+        cwd=str(repo_path),
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout.strip()
 
     cli = CommitOpsCli(str(repo_path))
@@ -51,8 +60,11 @@ def test_cherry_pick_non_merge_applies_commit_to_head(linear_repo, tmp_path):
     assert (repo_path / "c.txt").exists()
     # HEAD is now a new commit on feature, not tip_on_master itself.
     head = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=str(repo_path),
-        capture_output=True, text=True, check=True,
+        ["git", "rev-parse", "HEAD"],
+        cwd=str(repo_path),
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout.strip()
     assert head != tip_on_master
 
@@ -93,8 +105,11 @@ def test_cherry_pick_merge_commit_with_is_merge_true(tmp_path: Path):
     # Create a merge commit on master.
     _run(str(tmp_path), "merge", "--no-ff", "-m", "merge feature", "feature")
     merge_sha = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=str(tmp_path),
-        capture_output=True, text=True, check=True,
+        ["git", "rev-parse", "HEAD"],
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout.strip()
     # Now reset master to before the merge and cherry-pick the merge commit.
     _run(str(tmp_path), "reset", "--hard", "HEAD~1")
@@ -104,7 +119,9 @@ def test_cherry_pick_merge_commit_with_is_merge_true(tmp_path: Path):
     cli = CommitOpsCli(str(tmp_path))
     cli.cherry_pick(merge_sha, is_merge=True)  # Must succeed with -m 1.
 
-    assert (tmp_path / "feat.txt").exists()  # With mainline=1, the cherry-pick replays changes introduced by the feature side, so feat.txt should appear.
+    assert (
+        tmp_path / "feat.txt"
+    ).exists()  # With mainline=1, the cherry-pick replays changes introduced by the feature side, so feat.txt should appear.
 
 
 def test_revert_commit_non_merge(linear_repo):
@@ -212,8 +229,11 @@ def test_cherry_pick_merge_commit_with_is_merge_false_raises(tmp_path: Path):
     _commit(tmp_path, "other.txt", "other\n", "other")
     _run(str(tmp_path), "merge", "--no-ff", "-m", "merge feature", "feature")
     merge_sha = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=str(tmp_path),
-        capture_output=True, text=True, check=True,
+        ["git", "rev-parse", "HEAD"],
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout.strip()
     _run(str(tmp_path), "reset", "--hard", "HEAD~1")
     _run(str(tmp_path), "checkout", "-q", "-b", "target")

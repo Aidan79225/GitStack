@@ -1,6 +1,7 @@
 from __future__ import annotations
-from datetime import datetime, timezone
+
 import logging
+from datetime import UTC, datetime
 
 import pygit2
 
@@ -15,6 +16,7 @@ class StashOps:
     Mixin — not instantiable on its own. Relies on `self._repo` set up
     by the composite class.
     """
+
     _repo: pygit2.Repository  # provided by the composite
 
     # ── METHODS COPIED VERBATIM from Pygit2Repository ─────────────────
@@ -25,15 +27,17 @@ class StashOps:
             try:
                 commit = self._repo.get(stash.commit_id)
                 if commit is not None:
-                    ts = datetime.fromtimestamp(commit.commit_time, tz=timezone.utc).astimezone()
+                    ts = datetime.fromtimestamp(commit.commit_time, tz=UTC).astimezone()
             except Exception as e:
                 logger.warning("Failed to read stash %d timestamp: %s", i, e)
-            result.append(Stash(
-                index=i,
-                message=stash.message,
-                oid=str(stash.commit_id),
-                timestamp=ts,
-            ))
+            result.append(
+                Stash(
+                    index=i,
+                    message=stash.message,
+                    oid=str(stash.commit_id),
+                    timestamp=ts,
+                )
+            )
         return result
 
     def stash(self, message: str) -> None:

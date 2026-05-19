@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import os
 
 import pygit2
@@ -13,6 +14,7 @@ class RepoStateOps:
     Mixin — not instantiable on its own. Relies on `self._repo` set up
     by the composite class.
     """
+
     _repo: pygit2.Repository  # provided by the composite
 
     @property
@@ -114,6 +116,7 @@ class RepoStateOps:
         """Write user.name and user.email via subprocess `git config`.
         global_=True writes to ~/.gitconfig; False writes to this repo only."""
         import subprocess
+
         scope = "--global" if global_ else "--local"
         for key, value in (("user.name", name), ("user.email", email)):
             result = subprocess.run(

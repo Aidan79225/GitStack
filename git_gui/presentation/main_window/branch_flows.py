@@ -1,5 +1,6 @@
 # git_gui/presentation/main_window/branch_flows.py
 from __future__ import annotations
+
 from PySide6.QtWidgets import QInputDialog, QMessageBox
 
 

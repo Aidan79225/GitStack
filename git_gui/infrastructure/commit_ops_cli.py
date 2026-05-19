@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import os
 import shutil
 import subprocess
@@ -71,14 +72,17 @@ class CommitOpsCli:
                 **subprocess_kwargs(),
             )
         except FileNotFoundError as e:
-            raise CommitOpsCommandError(
-                f"`{self._git}` executable not found on PATH"
-            ) from e
+            raise CommitOpsCommandError(f"`{self._git}` executable not found on PATH") from e
         if result.returncode == 0:
             return
-        if conflict_state_file is not None and (
-            Path(self._cwd) / ".git" / conflict_state_file
-        ).exists():
+        if (
+            conflict_state_file is not None
+            and (Path(self._cwd) / ".git" / conflict_state_file).exists()
+        ):
             return
-        stderr = (result.stderr or "").strip() or (result.stdout or "").strip() or f"exit code {result.returncode}"
+        stderr = (
+            (result.stderr or "").strip()
+            or (result.stdout or "").strip()
+            or f"exit code {result.returncode}"
+        )
         raise RuntimeError(stderr)

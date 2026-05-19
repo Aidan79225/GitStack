@@ -1,16 +1,27 @@
 # git_gui/presentation/widgets/repo_list.py
 from __future__ import annotations
+
 from pathlib import Path
+
 import pygit2
 from PySide6.QtCore import QRect, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
-    QFileDialog, QHBoxLayout, QLabel, QMenu, QMessageBox, QPushButton,
-    QStyle, QStyledItemDelegate, QStyleOptionViewItem, QTreeView,
-    QVBoxLayout, QWidget,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
+    QTreeView,
+    QVBoxLayout,
+    QWidget,
 )
+
 from git_gui.domain.ports import IRepoStore
-from git_gui.presentation.theme import get_theme_manager, connect_widget
+from git_gui.presentation.theme import connect_widget, get_theme_manager
 
 
 def _active_bg() -> QColor:
@@ -50,6 +61,7 @@ class _RepoTree(QTreeView):
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
         from PySide6.QtCore import QPersistentModelIndex
+
         self._hover_idx = QPersistentModelIndex()
         self._drop_indicator_y: int | None = None  # y position in viewport
 
@@ -63,6 +75,7 @@ class _RepoTree(QTreeView):
             return
         from PySide6.QtCore import QMimeData
         from PySide6.QtGui import QDrag
+
         drag = QDrag(self)
         mime = QMimeData()
         mime.setText(path)
@@ -129,6 +142,7 @@ class _RepoTree(QTreeView):
         super().paintEvent(event)
         if self._drop_indicator_y is not None:
             from PySide6.QtGui import QPainter, QPen
+
             painter = QPainter(self.viewport())
             pen = QPen(get_theme_manager().current.colors.as_qcolor("primary"), 2)
             painter.setPen(pen)
@@ -138,6 +152,7 @@ class _RepoTree(QTreeView):
 
     def mouseMoveEvent(self, event) -> None:
         from PySide6.QtCore import QPersistentModelIndex
+
         idx = self.indexAt(event.position().toPoint())
         new_idx = QPersistentModelIndex(idx) if idx.isValid() else QPersistentModelIndex()
         if new_idx != self._hover_idx:
@@ -147,6 +162,7 @@ class _RepoTree(QTreeView):
 
     def leaveEvent(self, event) -> None:
         from PySide6.QtCore import QPersistentModelIndex
+
         if self._hover_idx.isValid():
             self._hover_idx = QPersistentModelIndex()
             self.viewport().update()
@@ -401,17 +417,18 @@ class RepoListWidget(QWidget):
 
         menu = QMenu(self)
         if kind == "open" and path:
-            menu.addAction("Close").triggered.connect(
-                lambda: self.repo_close_requested.emit(path))
+            menu.addAction("Close").triggered.connect(lambda: self.repo_close_requested.emit(path))
         elif kind == "recent" and path:
             menu.addAction("Remove from recent").triggered.connect(
-                lambda: self.repo_remove_recent_requested.emit(path))
+                lambda: self.repo_remove_recent_requested.emit(path)
+            )
         elif kind == "header":
             title = index.data(Qt.DisplayRole)
             if title == "OPEN":
                 menu.addAction("Open Repository...").triggered.connect(self._on_add_clicked)
                 menu.addAction("Clone Repository...").triggered.connect(
-                    lambda: self.clone_requested.emit())
+                    lambda: self.clone_requested.emit()
+                )
             else:
                 return
         else:

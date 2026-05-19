@@ -1,7 +1,22 @@
 from __future__ import annotations
+
 from collections.abc import Callable, Iterator
 from datetime import datetime
-from git_gui.domain.entities import Branch, Commit, CommitStat, FileStatus, Hunk, LocalBranchInfo, Remote, RepoStateInfo, Stash, Submodule, Tag, MergeAnalysisResult
+
+from git_gui.domain.entities import (
+    Branch,
+    Commit,
+    CommitStat,
+    FileStatus,
+    Hunk,
+    LocalBranchInfo,
+    MergeAnalysisResult,
+    Remote,
+    RepoStateInfo,
+    Stash,
+    Submodule,
+    Tag,
+)
 from git_gui.domain.ports import IRepositoryReader
 
 
@@ -18,7 +33,10 @@ class GetCommitGraph:
         first_parent: bool = False,
     ) -> list[Commit]:
         return self._reader.get_commits(
-            limit, skip, extra_tips=extra_tips, first_parent=first_parent,
+            limit,
+            skip,
+            extra_tips=extra_tips,
+            first_parent=first_parent,
         )
 
 
@@ -175,6 +193,7 @@ class IsAncestor:
 class GetMergeAnalysis:
     def __init__(self, reader: IRepositoryReader) -> None:
         self._reader = reader
+
     def execute(self, oid: str) -> MergeAnalysisResult:
         return self._reader.merge_analysis(oid)
 
@@ -182,6 +201,7 @@ class GetMergeAnalysis:
 class GetMergeHead:
     def __init__(self, reader: IRepositoryReader) -> None:
         self._reader = reader
+
     def execute(self) -> str | None:
         return self._reader.get_merge_head()
 
@@ -189,6 +209,7 @@ class GetMergeHead:
 class GetMergeMsg:
     def __init__(self, reader: IRepositoryReader) -> None:
         self._reader = reader
+
     def execute(self) -> str | None:
         return self._reader.get_merge_msg()
 
@@ -196,6 +217,7 @@ class GetMergeMsg:
 class HasUnresolvedConflicts:
     def __init__(self, reader: IRepositoryReader) -> None:
         self._reader = reader
+
     def execute(self) -> bool:
         return self._reader.has_unresolved_conflicts()
 

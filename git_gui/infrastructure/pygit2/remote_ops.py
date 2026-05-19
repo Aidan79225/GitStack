@@ -1,10 +1,11 @@
 from __future__ import annotations
+
 import subprocess
 
 import pygit2
 
-from git_gui.resources import subprocess_kwargs
 from git_gui.domain.entities import Remote
+from git_gui.resources import subprocess_kwargs
 
 
 class RemoteOps:
@@ -13,6 +14,7 @@ class RemoteOps:
     Mixin — not instantiable on its own. Relies on `self._repo` and
     `self._git_env` set up by the composite class.
     """
+
     _repo: pygit2.Repository  # provided by the composite
 
     # ── METHODS COPIED VERBATIM from Pygit2Repository ─────────────────
@@ -34,8 +36,11 @@ class RemoteOps:
     def _run_git(self, *args: str) -> None:
         result = subprocess.run(
             ["git", *args],
-            cwd=self._repo.workdir, capture_output=True, text=True,
-            env=self._git_env, **subprocess_kwargs(),
+            cwd=self._repo.workdir,
+            capture_output=True,
+            text=True,
+            env=self._git_env,
+            **subprocess_kwargs(),
         )
         if result.returncode != 0:
             msg = result.stderr.strip() or result.stdout.strip() or f"exit code {result.returncode}"

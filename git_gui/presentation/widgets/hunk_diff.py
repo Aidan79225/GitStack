@@ -1,17 +1,27 @@
 # git_gui/presentation/widgets/hunk_diff.py
 from __future__ import annotations
+
 import threading
-from PySide6.QtCore import QObject, QSize, Qt, Signal
+
+from PySide6.QtCore import QObject, QSize, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
-    QCheckBox, QMessageBox, QScrollArea,
-    QSpacerItem, QSizePolicy, QToolButton, QVBoxLayout, QWidget,
+    QCheckBox,
+    QMessageBox,
+    QScrollArea,
+    QSizePolicy,
+    QSpacerItem,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
 )
-from git_gui.domain.entities import Hunk
+
+from git_gui.domain.entities import WORKING_TREE_OID, Hunk
 from git_gui.presentation.bus import CommandBus, QueryBus
-from git_gui.domain.entities import WORKING_TREE_OID
 from git_gui.presentation.widgets.diff_block import (
-    make_file_block, make_diff_formats, add_hunk_widget,
+    add_hunk_widget,
+    make_diff_formats,
+    make_file_block,
 )
 from git_gui.presentation.widgets.viewport_block_loader import ViewportBlockLoader
 
@@ -80,6 +90,7 @@ class HunkDiffWidget(QWidget):
         self._clear_layout()
 
         from git_gui.presentation.widgets.diff_block import make_skeleton_container
+
         block_refs = []
         for path in paths:
             frame, inner = self._make_file_block(path)
@@ -145,9 +156,7 @@ class HunkDiffWidget(QWidget):
             self._submodule_paths = set()
             return
         try:
-            self._submodule_paths = {
-                s.path for s in self._queries.list_submodules.execute()
-            }
+            self._submodule_paths = {s.path for s in self._queries.list_submodules.execute()}
         except Exception:
             self._submodule_paths = set()
 
@@ -155,12 +164,14 @@ class HunkDiffWidget(QWidget):
         """Return a bordered QFrame file block and its inner layout."""
         on_click = (
             (lambda p=path: self.submodule_open_requested.emit(p))
-            if path in self._submodule_paths else None
+            if path in self._submodule_paths
+            else None
         )
         return make_file_block(path, on_header_clicked=on_click)
 
-    def _on_load_done(self, path: str, staged_hunks: list[Hunk],
-                      unstaged_hunks: list[Hunk], is_untracked: bool) -> None:
+    def _on_load_done(
+        self, path: str, staged_hunks: list[Hunk], unstaged_hunks: list[Hunk], is_untracked: bool
+    ) -> None:
         if path != self._current_path:
             return
         self._refresh_submodule_paths()
@@ -168,11 +179,13 @@ class HunkDiffWidget(QWidget):
 
         frame, inner = self._make_file_block(path)
         for hunk in staged_hunks:
-            self._add_hunk_block(hunk, is_staged=True, is_untracked=False,
-                                 path=path, parent_layout=inner)
+            self._add_hunk_block(
+                hunk, is_staged=True, is_untracked=False, path=path, parent_layout=inner
+            )
         for hunk in unstaged_hunks:
-            self._add_hunk_block(hunk, is_staged=False, is_untracked=is_untracked,
-                                 path=path, parent_layout=inner)
+            self._add_hunk_block(
+                hunk, is_staged=False, is_untracked=is_untracked, path=path, parent_layout=inner
+            )
 
         self._layout.addWidget(frame)
         self._layout.addStretch()
@@ -190,11 +203,13 @@ class HunkDiffWidget(QWidget):
             inner.removeWidget(skeleton)
             skeleton.deleteLater()
         for hunk in staged_hunks:
-            self._add_hunk_block(hunk, is_staged=True, is_untracked=False,
-                                 path=path, parent_layout=inner)
+            self._add_hunk_block(
+                hunk, is_staged=True, is_untracked=False, path=path, parent_layout=inner
+            )
         for hunk in unstaged_hunks:
-            self._add_hunk_block(hunk, is_staged=False, is_untracked=is_untracked,
-                                 path=path, parent_layout=inner)
+            self._add_hunk_block(
+                hunk, is_staged=False, is_untracked=is_untracked, path=path, parent_layout=inner
+            )
 
     def _render_sync(self) -> None:
         """Post-action refresh for single-file mode."""
@@ -204,9 +219,7 @@ class HunkDiffWidget(QWidget):
             return
         path = self._current_path
         staged_hunks = self._queries.get_staged_diff.execute(path)
-        unstaged_hunks = self._queries.get_file_diff.execute(
-            WORKING_TREE_OID, path
-        )
+        unstaged_hunks = self._queries.get_file_diff.execute(WORKING_TREE_OID, path)
         is_untracked = (
             not staged_hunks
             and bool(unstaged_hunks)
@@ -215,11 +228,13 @@ class HunkDiffWidget(QWidget):
 
         frame, inner = self._make_file_block(path)
         for hunk in staged_hunks:
-            self._add_hunk_block(hunk, is_staged=True, is_untracked=False,
-                                 path=path, parent_layout=inner)
+            self._add_hunk_block(
+                hunk, is_staged=True, is_untracked=False, path=path, parent_layout=inner
+            )
         for hunk in unstaged_hunks:
-            self._add_hunk_block(hunk, is_staged=False, is_untracked=is_untracked,
-                                 path=path, parent_layout=inner)
+            self._add_hunk_block(
+                hunk, is_staged=False, is_untracked=is_untracked, path=path, parent_layout=inner
+            )
 
         self._layout.addWidget(frame)
         self._layout.addStretch()
@@ -231,9 +246,14 @@ class HunkDiffWidget(QWidget):
         # Reload via the lazy pipeline
         self.load_all_files(self._all_paths)
 
-    def _add_hunk_block(self, hunk: Hunk, is_staged: bool, is_untracked: bool,
-                        path: str | None = None,
-                        parent_layout: QVBoxLayout | None = None) -> None:
+    def _add_hunk_block(
+        self,
+        hunk: Hunk,
+        is_staged: bool,
+        is_untracked: bool,
+        path: str | None = None,
+        parent_layout: QVBoxLayout | None = None,
+    ) -> None:
         # Use explicitly passed path, fall back to self._current_path for backward compat
         if path is None:
             path = self._current_path
@@ -245,8 +265,9 @@ class HunkDiffWidget(QWidget):
         checkbox = QCheckBox()
         checkbox.setChecked(is_staged)
         checkbox.toggled.connect(
-            lambda checked, p=path, h=header, u=is_untracked:
-                self._on_hunk_toggled(p, h, checked, u)
+            lambda checked, p=path, h=header, u=is_untracked: self._on_hunk_toggled(
+                p, h, checked, u
+            )
         )
 
         extra_right: list = []
@@ -263,15 +284,16 @@ class HunkDiffWidget(QWidget):
             x_btn.setToolTip("Discard this file" if is_whole_file else "Discard this hunk")
             x_btn.setAutoRaise(True)
             x_btn.clicked.connect(
-                lambda _=False, p=path, h=header, w=is_whole_file:
-                    self._on_discard_file_clicked(p) if w
-                    else self._on_discard_hunk_clicked(p, h)
+                lambda _=False, p=path, h=header, w=is_whole_file: (
+                    self._on_discard_file_clicked(p) if w else self._on_discard_hunk_clicked(p, h)
+                )
             )
             extra_right = [x_btn]
 
         on_click = (
             (lambda p=path: self.submodule_open_requested.emit(p))
-            if path in self._submodule_paths else None
+            if path in self._submodule_paths
+            else None
         )
         add_hunk_widget(
             target_layout,
@@ -282,8 +304,9 @@ class HunkDiffWidget(QWidget):
             on_header_clicked=on_click,
         )
 
-    def _on_hunk_toggled(self, path: str, hunk_header: str, checked: bool,
-                         is_untracked: bool = False) -> None:
+    def _on_hunk_toggled(
+        self, path: str, hunk_header: str, checked: bool, is_untracked: bool = False
+    ) -> None:
         # Whole-file add (untracked → stage, or staged-add → unstage):
         # the synthesised "@@ -0,0 +1,N @@" hunk can't be processed by
         # `git apply [--cached] [--reverse]`, so route to stage/unstage_files.

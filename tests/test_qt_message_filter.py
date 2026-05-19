@@ -2,7 +2,7 @@ import logging
 
 from PySide6.QtCore import QtMsgType
 
-from main import _qt_message_filter, _SUPPRESSED_FRAGMENTS
+from main import _SUPPRESSED_FRAGMENTS, _qt_message_filter
 
 
 class TestQtMessageFilter:

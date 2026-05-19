@@ -1,12 +1,15 @@
 # git_gui/presentation/main_window/remote_op_queue.py
 from __future__ import annotations
+
 import threading
+
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QMessageBox
 
 
 class _RemoteSignals(QObject):
     """Signal bridge — lives on main thread, emitted from background thread."""
+
     finished = Signal(str)
     failed = Signal(str, str)
 
@@ -29,7 +32,10 @@ class RemoteOpQueueMixin:
         self._sidebar.fetch_requested.connect(self._on_fetch_single)
         self._sidebar.tag_push_requested.connect(self._on_push_tag)
         self._sidebar.branch_push_requested.connect(
-            lambda b: self._run_remote_op(f"Push origin/{b}", lambda: self._commands.push.execute("origin", b)))
+            lambda b: self._run_remote_op(
+                f"Push origin/{b}", lambda: self._commands.push.execute("origin", b)
+            )
+        )
 
     def _run_remote_op(self, name: str, fn) -> None:
         if self._remote_running:
@@ -74,10 +80,10 @@ class RemoteOpQueueMixin:
                 reply = QMessageBox.warning(
                     self,
                     "Push Rejected",
-                    f"Push was rejected because the remote branch has changes "
-                    f"you don't have locally.\n\n"
-                    f"Would you like to force push with --force-with-lease?\n"
-                    f"This will overwrite the remote branch.",
+                    "Push was rejected because the remote branch has changes "
+                    "you don't have locally.\n\n"
+                    "Would you like to force push with --force-with-lease?\n"
+                    "This will overwrite the remote branch.",
                     QMessageBox.Yes | QMessageBox.No,
                     QMessageBox.No,
                 )
@@ -107,18 +113,21 @@ class RemoteOpQueueMixin:
         def _fn():
             self._commands.fetch_all_prune.execute()
             self._update_remote_tag_cache("origin")
+
         self._run_remote_op("Fetch --all --prune", _fn)
 
     def _on_fetch_single(self, remote: str) -> None:
         def _fn():
             self._commands.fetch.execute(remote)
             self._update_remote_tag_cache(remote)
+
         self._run_remote_op(f"Fetch {remote}", _fn)
 
     def _on_push_tag(self, name: str) -> None:
         def _fn():
             self._commands.push_tag.execute("origin", name)
             self._update_remote_tag_cache("origin")
+
         self._run_remote_op(f"Push tag {name}", _fn)
 
     def _get_current_branch(self) -> str | None:

@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+
 from git_gui.resources import get_resource_path
 
 

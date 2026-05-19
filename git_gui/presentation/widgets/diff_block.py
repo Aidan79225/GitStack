@@ -1,15 +1,22 @@
 # git_gui/presentation/widgets/diff_block.py
 """Shared helpers for rendering diff hunks in both commit-detail and working-tree views."""
+
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QTextBlockFormat, QTextCharFormat
 from PySide6.QtWidgets import (
-    QFrame, QHBoxLayout, QLabel, QPlainTextEdit, QSizePolicy, QVBoxLayout, QWidget,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPlainTextEdit,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
 )
 
 
@@ -21,20 +28,22 @@ class _ClickableLabel(QLabel):
         self._on_click = on_click
         self.setCursor(Qt.PointingHandCursor)
 
-    def mousePressEvent(self, ev) -> None:  # noqa: N802 (Qt API)
+    def mousePressEvent(self, ev) -> None:
         if ev.button() == Qt.LeftButton:
             self._on_click()
             ev.accept()
             return
         super().mousePressEvent(ev)
 
+
 from git_gui.domain.entities import Hunk
-from git_gui.presentation.theme import get_theme_manager, connect_widget
+from git_gui.presentation.theme import connect_widget, get_theme_manager
 from git_gui.presentation.widgets._collapse_toggle import _CollapseToggle
 
 # ---------------------------------------------------------------------------
 # Style constants
 # ---------------------------------------------------------------------------
+
 
 def _file_block_style() -> str:
     c = get_theme_manager().current.colors
@@ -42,6 +51,7 @@ def _file_block_style() -> str:
         f"QFrame#fileBlock {{ border: 1px solid {c.outline}; "
         f"border-radius: 4px; background-color: {c.surface_container_high}; }}"
     )
+
 
 def _header_style() -> str:
     c = get_theme_manager().current.colors
@@ -51,8 +61,9 @@ def _header_style() -> str:
 def _hunk_header_color() -> str:
     return get_theme_manager().current.colors.diff_hunk_header_fg
 
+
 HEADER_ROW_HEIGHT = 22  # consistent height for file + hunk header rows
-HEADER_ROW_VPAD = 3      # top/bottom padding inside the header row
+HEADER_ROW_VPAD = 3  # top/bottom padding inside the header row
 
 _LONG_LINE_LIMIT = 2000
 
@@ -60,6 +71,7 @@ _LONG_LINE_LIMIT = 2000
 # ---------------------------------------------------------------------------
 # Diff format dataclass
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class DiffFormats:
@@ -89,13 +101,13 @@ class SyntaxFormats:
 
 # Maps the syntax_highlighter SyntaxToken.kind string → a SyntaxFormats attribute name.
 _KIND_TO_ATTR = {
-    "syntax_keyword":   "keyword",
-    "syntax_function":  "function",
-    "syntax_class":     "class_",
-    "syntax_string":    "string",
-    "syntax_number":    "number",
-    "syntax_comment":   "comment",
-    "syntax_operator":  "operator",
+    "syntax_keyword": "keyword",
+    "syntax_function": "function",
+    "syntax_class": "class_",
+    "syntax_string": "string",
+    "syntax_number": "number",
+    "syntax_comment": "comment",
+    "syntax_operator": "operator",
     "syntax_decorator": "decorator",
 }
 
@@ -103,6 +115,7 @@ _KIND_TO_ATTR = {
 # ---------------------------------------------------------------------------
 # Factories
 # ---------------------------------------------------------------------------
+
 
 def make_file_block(
     path: str,
@@ -246,6 +259,7 @@ def make_diff_editor() -> QPlainTextEdit:
 # Parse helpers
 # ---------------------------------------------------------------------------
 
+
 def parse_hunk_header(header: str) -> tuple[int, int]:
     """Return (old_start, new_start) line numbers parsed from a @@ header string."""
     m = re.match(r"@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@", header)
@@ -257,6 +271,7 @@ def parse_hunk_header(header: str) -> tuple[int, int]:
 # ---------------------------------------------------------------------------
 # Hunk rendering helpers
 # ---------------------------------------------------------------------------
+
 
 def render_hunk_header_line(cursor, hunk: Hunk, formats: DiffFormats) -> None:
     """Insert the @@ header line of *hunk* into *cursor* using the header char format."""
@@ -291,8 +306,13 @@ def _build_pair_index(lines: list[tuple[str, str]]) -> dict[int, tuple[str, str]
 
 
 def _render_lines_range(
-    cursor, hunk, formats, start, end,
-    syntax_formats=None, filename=None,
+    cursor,
+    hunk,
+    formats,
+    start,
+    end,
+    syntax_formats=None,
+    filename=None,
     pair_index=None,
 ) -> None:
     """Render hunk.lines[start:end] into cursor, tracking line numbers.
@@ -303,6 +323,7 @@ def _render_lines_range(
     spans of paired -/+ lines.
     """
     from PySide6.QtGui import QTextCursor
+
     from git_gui.presentation.widgets.syntax_highlighter import tokenize
     from git_gui.presentation.widgets.word_diff import pair_diff
 
@@ -389,8 +410,10 @@ def _render_lines_range(
 
 
 def render_hunk_content_lines(
-    cursor, hunk: Hunk, formats: DiffFormats,
-    syntax_formats: "SyntaxFormats | None" = None,
+    cursor,
+    hunk: Hunk,
+    formats: DiffFormats,
+    syntax_formats: SyntaxFormats | None = None,
     filename: str | None = None,
 ) -> int:
     """Insert the +/-/context lines of *hunk* into *cursor*.
@@ -411,19 +434,30 @@ def render_hunk_content_lines(
     total = len(hunk.lines)
     if total <= _CHUNK_SIZE:
         _render_lines_range(
-            cursor, hunk, formats, 0, total,
-            syntax_formats=syntax_formats, filename=filename,
+            cursor,
+            hunk,
+            formats,
+            0,
+            total,
+            syntax_formats=syntax_formats,
+            filename=filename,
             pair_index=pair_index,
         )
         return total
 
     _render_lines_range(
-        cursor, hunk, formats, 0, _CHUNK_SIZE,
-        syntax_formats=syntax_formats, filename=filename,
+        cursor,
+        hunk,
+        formats,
+        0,
+        _CHUNK_SIZE,
+        syntax_formats=syntax_formats,
+        filename=filename,
         pair_index=pair_index,
     )
 
     from PySide6.QtCore import QTimer
+
     state = {"start": _CHUNK_SIZE}
 
     # The cursor's document is the context: when its parent widget is deleted
@@ -437,8 +471,13 @@ def render_hunk_content_lines(
             start = state["start"]
             end = min(start + _CHUNK_SIZE, total)
             _render_lines_range(
-                cursor, hunk, formats, start, end,
-                syntax_formats=syntax_formats, filename=filename,
+                cursor,
+                hunk,
+                formats,
+                start,
+                end,
+                syntax_formats=syntax_formats,
+                filename=filename,
                 pair_index=pair_index,
             )
             state["start"] = end
@@ -465,6 +504,7 @@ def render_hunk_lines(cursor, hunk: Hunk, formats: DiffFormats) -> int:
 # Shared per-hunk widget builder
 # ---------------------------------------------------------------------------
 
+
 def add_hunk_widget(
     parent_layout: QVBoxLayout,
     hunk: Hunk,
@@ -473,7 +513,7 @@ def add_hunk_widget(
     extra_left_widgets: list[QWidget] | None = None,
     extra_right_widgets: list[QWidget] | None = None,
     on_header_clicked: Callable[[], None] | None = None,
-    syntax_formats: "SyntaxFormats | None" = None,
+    syntax_formats: SyntaxFormats | None = None,
     filename: str | None = None,
 ) -> None:
     """Append a header row + sized-to-fit diff editor for one hunk into parent_layout.
@@ -512,8 +552,11 @@ def add_hunk_widget(
         editor.clear()
         cursor = editor.textCursor()
         count = render_hunk_content_lines(
-            cursor, hunk, current_formats,
-            syntax_formats=syntax_formats, filename=filename,
+            cursor,
+            hunk,
+            current_formats,
+            syntax_formats=syntax_formats,
+            filename=filename,
         )
         editor.setTextCursor(cursor)
         return count
@@ -534,8 +577,11 @@ def add_hunk_widget(
         editor.clear()
         cursor = editor.textCursor()
         render_hunk_content_lines(
-            cursor, hunk, make_diff_formats(),
-            syntax_formats=new_syntax, filename=filename,
+            cursor,
+            hunk,
+            make_diff_formats(),
+            syntax_formats=new_syntax,
+            filename=filename,
         )
         editor.setTextCursor(cursor)
 
@@ -550,17 +596,16 @@ def make_skeleton_container() -> QWidget:
 
     Used as a placeholder inside a file block while the real hunks are being loaded.
     """
-    from PySide6.QtWidgets import QVBoxLayout, QFrame
+    from PySide6.QtWidgets import QFrame, QVBoxLayout
+
     container = QWidget()
     layout = QVBoxLayout(container)
     layout.setContentsMargins(8, 6, 8, 6)
     layout.setSpacing(4)
-    for width_pct in (90, 60, 75, 50):
+    for _ in (90, 60, 75, 50):
         bar = QFrame()
         bar.setFixedHeight(10)
         bar.setMinimumWidth(40)
-        bar.setStyleSheet(
-            "background-color: rgba(128, 128, 128, 40); border-radius: 3px;"
-        )
+        bar.setStyleSheet("background-color: rgba(128, 128, 128, 40); border-radius: 3px;")
         layout.addWidget(bar)
     return container

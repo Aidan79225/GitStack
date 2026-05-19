@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 import subprocess
 from pathlib import Path
+
 import pytest
-import pygit2
 
 from git_gui.domain.entities import ResetMode
 from git_gui.infrastructure.pygit2 import Pygit2Repository
@@ -11,9 +12,15 @@ from git_gui.infrastructure.pygit2 import Pygit2Repository
 @pytest.fixture
 def three_commit_repo(tmp_path: Path) -> tuple[Pygit2Repository, str, str, str]:
     """master with 3 commits. Returns (impl, first_sha, second_sha, third_sha)."""
+
     def _run(*args):
-        subprocess.run(["git", *args], cwd=str(tmp_path), check=True,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(
+            ["git", *args],
+            cwd=str(tmp_path),
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
 
     _run("init", "-q", "-b", "master")
     _run("config", "user.email", "t@t")
@@ -24,8 +31,11 @@ def three_commit_repo(tmp_path: Path) -> tuple[Pygit2Repository, str, str, str]:
         _run("add", name)
         _run("commit", "-m", msg)
         r = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=str(tmp_path),
-            capture_output=True, text=True, check=True,
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(tmp_path),
+            capture_output=True,
+            text=True,
+            check=True,
         )
         return r.stdout.strip()
 
@@ -37,8 +47,11 @@ def three_commit_repo(tmp_path: Path) -> tuple[Pygit2Repository, str, str, str]:
 
 def _head_sha(repo_path: Path) -> str:
     r = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=str(repo_path),
-        capture_output=True, text=True, check=True,
+        ["git", "rev-parse", "HEAD"],
+        cwd=str(repo_path),
+        capture_output=True,
+        text=True,
+        check=True,
     )
     return r.stdout.strip()
 
@@ -53,8 +66,11 @@ def test_reset_soft_moves_head_only(three_commit_repo, tmp_path):
     assert (tmp_path / "c.txt").exists()
     # Both files are staged (index entries for them).
     status = subprocess.run(
-        ["git", "status", "--porcelain"], cwd=str(tmp_path),
-        capture_output=True, text=True, check=True,
+        ["git", "status", "--porcelain"],
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout
     assert "A  b.txt" in status
     assert "A  c.txt" in status
@@ -67,8 +83,11 @@ def test_reset_mixed_keeps_working_tree_resets_index(three_commit_repo, tmp_path
     assert (tmp_path / "b.txt").exists()
     assert (tmp_path / "c.txt").exists()
     status = subprocess.run(
-        ["git", "status", "--porcelain"], cwd=str(tmp_path),
-        capture_output=True, text=True, check=True,
+        ["git", "status", "--porcelain"],
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout
     # Now b.txt / c.txt are untracked (??), not staged.
     assert "?? b.txt" in status
