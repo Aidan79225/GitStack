@@ -60,6 +60,7 @@ def main() -> None:
     init_crash_reporting()
     qInstallMessageHandler(_qt_message_filter)
     app = QApplication(sys.argv)
+    app.setOrganizationName("GitCrisp")
     app.setApplicationName("GitCrisp")
 
     theme_manager = ThemeManager(app)
