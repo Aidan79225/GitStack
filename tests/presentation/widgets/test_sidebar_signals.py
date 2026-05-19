@@ -172,7 +172,7 @@ def test_single_click_stash_emits_stash_clicked_with_oid(sidebar, qtbot):
 # -- 2. Double-click branch -----------------------------------------------
 
 
-def test_double_click_branch_executes_checkout_and_emits_signal(sidebar, qtbot):
+def test_double_click_local_branch_emits_checkout_branch_requested(sidebar, qtbot):
     w, _, commands = sidebar
     item = _branch_item("feature", "abc123")
     _add_section(w, "LOCAL BRANCHES", [item])

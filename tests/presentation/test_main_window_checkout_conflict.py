@@ -87,8 +87,23 @@ def test_checkout_scrolls_graph_to_head(qtbot):
     win = _make_window(qtbot)
     queries, commands = _wire_buses(win)
     queries.get_head_oid.execute.return_value = "deadbeef"
+    # Replace _graph entirely so the patched _reload doesn't interact with scroll_to_oid.
     win._graph = MagicMock()
     with patch.object(win, "_reload"):
         win._on_checkout_branch("feature")
     commands.checkout.execute.assert_called_once_with("feature")
     win._graph.scroll_to_oid.assert_called_once_with("deadbeef", select=True)
+
+
+def test_conflict_cancel_does_not_scroll(qtbot):
+    """Cancel on the conflict prompt must not trigger scroll-to-HEAD."""
+    win = _make_window(qtbot)
+    queries, commands = _wire_buses(win)
+    queries.get_head_oid.execute.return_value = "deadbeef"
+    win._graph = MagicMock()
+    with (
+        patch.object(QMessageBox, "question", return_value=QMessageBox.Cancel),
+        patch.object(win, "_reload"),
+    ):
+        win._on_checkout_branch("origin/feature")
+    win._graph.scroll_to_oid.assert_not_called()
