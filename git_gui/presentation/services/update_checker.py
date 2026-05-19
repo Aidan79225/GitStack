@@ -6,19 +6,23 @@ Two layers:
   `urllib.request.urlopen`. Returns ``(tag, html_url)`` or ``None`` for
   any failure (network, HTTP, JSON, missing fields).
 - `UpdateChecker`: a QObject that runs ``fetch_latest_release`` on a
-  background ``QThread`` and emits ``update_available(version, url)``
-  when the remote version is newer than the running one. (Added in the
-  next task.)
+  ``threading.Thread`` and emits ``update_available(version, url)``
+  when the remote version is newer than the running one. We use a
+  Python thread rather than ``QThread`` because Qt signals are already
+  thread-safe (cross-thread emits auto-queue to the receiver's thread)
+  and QThread's moveToThread+deleteLater lifecycle is fragile in test
+  harnesses on Linux — it has segfaulted in pytest-qt CI runs.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import threading
 import urllib.request
 
 from packaging.version import InvalidVersion, Version
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, Signal
 
 logger = logging.getLogger(__name__)
 
@@ -47,25 +51,18 @@ def fetch_latest_release(url: str) -> tuple[str, str] | None:
     return tag, url_
 
 
-class _CheckWorker(QObject):
-    finished = Signal(object)  # tuple[str, str] | None
-
-    def __init__(self, url: str) -> None:
-        super().__init__()
-        self._url = url
-
-    def run(self) -> None:
-        self.finished.emit(fetch_latest_release(self._url))
-
-
 class UpdateChecker(QObject):
     """Background GitHub release check. Emits when a newer release is found.
 
-    Owns its worker thread. ``check()`` is fire-and-forget; if you need
-    to re-check later, just call it again.
+    ``check()`` spawns a daemon ``threading.Thread`` that runs
+    ``fetch_latest_release`` and hands the result back via the private
+    ``_result_ready`` signal. Qt routes that signal to ``_on_finished``
+    on the receiver's thread (the main GUI thread), so all version
+    parsing and the public ``update_available`` emit happen there.
     """
 
     update_available = Signal(str, str)  # (version_tag, html_url)
+    _result_ready = Signal(object)  # tuple[str, str] | None — internal
 
     def __init__(
         self,
@@ -76,19 +73,16 @@ class UpdateChecker(QObject):
         super().__init__(parent)
         self._current_version = current_version
         self._url = url
-        self._thread: QThread | None = None
-        self._worker: _CheckWorker | None = None
+        self._result_ready.connect(self._on_finished)
 
     def check(self) -> None:
-        self._thread = QThread()
-        self._worker = _CheckWorker(self._url)
-        self._worker.moveToThread(self._thread)
-        self._thread.started.connect(self._worker.run)
-        self._worker.finished.connect(self._on_finished)
-        self._worker.finished.connect(self._thread.quit)
-        self._thread.finished.connect(self._worker.deleteLater)
-        self._thread.finished.connect(self._thread.deleteLater)
-        self._thread.start()
+        thread = threading.Thread(target=self._run, daemon=True)
+        thread.start()
+
+    def _run(self) -> None:
+        # Runs on the background thread. The signal emit is auto-queued
+        # to the main thread by Qt.
+        self._result_ready.emit(fetch_latest_release(self._url))
 
     def _on_finished(self, result: tuple[str, str] | None) -> None:
         if result is None:
