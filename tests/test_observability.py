@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import sys
-import types
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -10,13 +8,13 @@ from git_gui.observability import _before_send, init_crash_reporting
 
 def test_init_returns_false_when_dsn_missing(monkeypatch):
     monkeypatch.delenv("GITCRISP_SENTRY_DSN", raising=False)
-    monkeypatch.delitem(sys.modules, "git_gui._build_config", raising=False)
+    monkeypatch.setattr("git_gui.observability._get_baked_config", lambda: (None, None))
     assert init_crash_reporting() is False
 
 
 def test_init_calls_sentry_when_dsn_set(monkeypatch):
     monkeypatch.setenv("GITCRISP_SENTRY_DSN", "https://key@example.ingest.sentry.io/123")
-    monkeypatch.delitem(sys.modules, "git_gui._build_config", raising=False)
+    monkeypatch.setattr("git_gui.observability._get_baked_config", lambda: (None, None))
     fake_sentry = MagicMock()
     with patch.dict("sys.modules", {"sentry_sdk": fake_sentry}):
         assert init_crash_reporting() is True
@@ -32,10 +30,10 @@ def test_init_calls_sentry_when_dsn_set(monkeypatch):
 def test_baked_dsn_overrides_env(monkeypatch):
     """Built binaries with a baked _build_config should ignore the env var."""
     monkeypatch.setenv("GITCRISP_SENTRY_DSN", "https://env@example.ingest.sentry.io/1")
-    fake_module = types.ModuleType("git_gui._build_config")
-    fake_module.DSN = "https://baked@example.ingest.sentry.io/2"
-    fake_module.VERSION = "1.2.3"
-    monkeypatch.setitem(sys.modules, "git_gui._build_config", fake_module)
+    monkeypatch.setattr(
+        "git_gui.observability._get_baked_config",
+        lambda: ("https://baked@example.ingest.sentry.io/2", "1.2.3"),
+    )
     fake_sentry = MagicMock()
     with patch.dict("sys.modules", {"sentry_sdk": fake_sentry}):
         assert init_crash_reporting() is True
@@ -47,10 +45,7 @@ def test_baked_dsn_overrides_env(monkeypatch):
 def test_baked_config_with_empty_dsn_falls_back_to_env(monkeypatch):
     """An empty DSN string in _build_config (template never substituted) falls back."""
     monkeypatch.setenv("GITCRISP_SENTRY_DSN", "https://env@example.ingest.sentry.io/1")
-    fake_module = types.ModuleType("git_gui._build_config")
-    fake_module.DSN = ""
-    fake_module.VERSION = ""
-    monkeypatch.setitem(sys.modules, "git_gui._build_config", fake_module)
+    monkeypatch.setattr("git_gui.observability._get_baked_config", lambda: (None, None))
     fake_sentry = MagicMock()
     with patch.dict("sys.modules", {"sentry_sdk": fake_sentry}):
         assert init_crash_reporting() is True
